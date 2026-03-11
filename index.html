@@ -1,1 +1,871 @@
-1
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大頭照裁切工具</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --surface: #16161a;
+    --surface2: #1e1e24;
+    --border: #2a2a35;
+    --accent: #c8f55a;
+    --accent2: #5af5c8;
+    --text: #f0f0f0;
+    --text-dim: #888;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(200,245,90,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,245,90,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo-mark {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .logo-mark svg { width: 24px; height: 24px; }
+
+  h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+    margin-left: auto;
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  /* Steps */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: border-color 0.3s;
+  }
+
+  .step.active {
+    border-color: var(--accent);
+    background: rgba(200,245,90,0.05);
+  }
+
+  .step-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    letter-spacing: 0.1em;
+  }
+
+  .step.active .step-num { color: var(--accent); }
+
+  .step-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-dim);
+  }
+
+  .step.active .step-label { color: var(--text); }
+
+  /* Upload zone */
+  #upload-zone {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-bottom: 24px;
+  }
+
+  #upload-zone:hover, #upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(200,245,90,0.04);
+  }
+
+  #upload-zone.hidden { display: none; }
+
+  .upload-icon {
+    width: 64px;
+    height: 64px;
+    background: var(--surface2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    border: 1px solid var(--border);
+  }
+
+  .upload-icon svg { width: 28px; height: 28px; color: var(--accent); }
+
+  .upload-title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .upload-hint {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .upload-btn {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 24px;
+    background: var(--accent);
+    color: #000;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    font-family: 'Space Mono', monospace;
+    transition: opacity 0.2s;
+  }
+
+  .upload-btn:hover { opacity: 0.85; }
+
+  /* Editor */
+  #editor-zone {
+    display: none;
+  }
+
+  #editor-zone.visible { display: block; }
+
+  .editor-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 20px;
+  }
+
+  .crop-area {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .crop-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .crop-toolbar-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.05em;
+    margin-right: 4px;
+  }
+
+  .crop-img-container {
+    width: 100%;
+    max-height: 450px;
+  }
+
+  .crop-img-container img {
+    display: block;
+    max-width: 100%;
+  }
+
+  /* Side panel */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .panel-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .panel-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  /* Preview */
+  .preview-wrap {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+  }
+
+  .preview-circle, .preview-square {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .preview-circle { border-radius: 50%; width: 72px; height: 72px; }
+  .preview-square { border-radius: 8px; width: 56px; height: 56px; }
+
+  .preview-label {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    text-align: center;
+    margin-top: 4px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Ratio buttons */
+  .ratio-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .ratio-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 8px 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: 'Space Mono', monospace;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .ratio-btn:hover { border-color: var(--accent); color: var(--text); }
+  .ratio-btn.active { border-color: var(--accent); background: rgba(200,245,90,0.1); color: var(--accent); }
+
+  /* Controls */
+  .control-row {
+    margin-bottom: 14px;
+  }
+
+  .control-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  .control-val {
+    color: var(--accent2);
+    font-family: 'Space Mono', monospace;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    height: 3px;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.3); }
+
+  /* File size */
+  .size-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .size-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .size-input-wrap label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .size-input-wrap input[type="number"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    font-family: 'Space Mono', monospace;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .size-input-wrap input[type="number"]:focus { border-color: var(--accent2); }
+
+  .format-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .fmt-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 7px 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-family: 'Space Mono', monospace;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .fmt-btn.active { border-color: var(--accent2); background: rgba(90,245,200,0.1); color: var(--accent2); }
+  .fmt-btn:hover { border-color: var(--accent2); color: var(--text); }
+
+  .quality-row { margin-bottom: 10px; }
+
+  .filesize-display {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 6px;
+    background: var(--surface2);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .filesize-display span { color: var(--accent2); }
+
+  /* Buttons */
+  .btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    font-family: 'Space Mono', monospace;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-family: 'Space Mono', monospace;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+  }
+
+  .btn-secondary:hover { border-color: var(--text-dim); color: var(--text); }
+
+  /* Tool buttons */
+  .tool-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-family: 'Space Mono', monospace;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    z-index: 9999;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 680px) {
+    .editor-layout { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr; gap: 8px; }
+    h1 { font-size: 1.2rem; }
+    .subtitle { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+      </svg>
+    </div>
+    <div>
+      <h1>PHOTO<span>CROP</span></h1>
+    </div>
+    <div class="subtitle">大頭照裁切工具<br>Upload · Crop · Export</div>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1">
+      <div class="step-num">STEP 01</div>
+      <div class="step-label">上傳照片</div>
+    </div>
+    <div class="step" id="step2">
+      <div class="step-num">STEP 02</div>
+      <div class="step-label">裁切調整</div>
+    </div>
+    <div class="step" id="step3">
+      <div class="step-num">STEP 03</div>
+      <div class="step-label">匯出下載</div>
+    </div>
+  </div>
+
+  <!-- Upload Zone -->
+  <div id="upload-zone">
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+      </svg>
+    </div>
+    <div class="upload-title">拖放照片到這裡</div>
+    <div class="upload-hint">支援 JPG、PNG、WEBP、GIF 格式<br>建議使用清晰的正面照片以獲得最佳效果</div>
+    <div class="upload-btn">選擇檔案</div>
+    <input type="file" id="file-input" accept="image/*" style="display:none">
+  </div>
+
+  <!-- Editor Zone -->
+  <div id="editor-zone">
+    <div class="editor-layout">
+
+      <!-- Left: Crop -->
+      <div class="crop-area">
+        <div class="crop-toolbar">
+          <span class="crop-toolbar-label">工具</span>
+          <button class="tool-btn" onclick="rotateLeft()">↺ 左轉</button>
+          <button class="tool-btn" onclick="rotateRight()">↻ 右轉</button>
+          <button class="tool-btn" onclick="flipH()">⇄ 水平翻轉</button>
+          <button class="tool-btn" onclick="flipV()">⇅ 垂直翻轉</button>
+          <button class="tool-btn" onclick="resetCrop()">⊙ 重置</button>
+        </div>
+        <div class="crop-img-container">
+          <img id="crop-image" src="" alt="crop">
+        </div>
+      </div>
+
+      <!-- Right: Controls -->
+      <div class="side-panel">
+
+        <!-- Preview -->
+        <div class="panel-card">
+          <div class="panel-title">預覽</div>
+          <div class="preview-wrap">
+            <div>
+              <div class="preview-circle" id="preview-circle"></div>
+              <div class="preview-label">圓形</div>
+            </div>
+            <div>
+              <div class="preview-square" id="preview-square"></div>
+              <div class="preview-label">方形</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Aspect Ratio -->
+        <div class="panel-card">
+          <div class="panel-title">裁切比例</div>
+          <div class="ratio-grid">
+            <button class="ratio-btn active" onclick="setRatio(1,1,'1:1')">1 : 1</button>
+            <button class="ratio-btn" onclick="setRatio(4,3,'4:3')">4 : 3</button>
+            <button class="ratio-btn" onclick="setRatio(3,4,'3:4')">3 : 4</button>
+            <button class="ratio-btn" onclick="setRatio(16,9,'16:9')">16:9</button>
+            <button class="ratio-btn" onclick="setRatio(2,3,'2:3')">2 : 3</button>
+            <button class="ratio-btn" onclick="setRatio(NaN,NaN,'自由')">自由</button>
+          </div>
+        </div>
+
+        <!-- Adjust -->
+        <div class="panel-card">
+          <div class="panel-title">縮放</div>
+          <div class="control-row">
+            <div class="control-label">
+              <span>縮放比例</span>
+              <span class="control-val" id="zoom-val">1.0×</span>
+            </div>
+            <input type="range" id="zoom-slider" min="0.1" max="3" step="0.05" value="1" oninput="onZoom(this.value)">
+          </div>
+          <div class="control-row">
+            <div class="control-label">
+              <span>旋轉角度</span>
+              <span class="control-val" id="rotate-val">0°</span>
+            </div>
+            <input type="range" id="rotate-slider" min="-180" max="180" step="1" value="0" oninput="onRotate(this.value)">
+          </div>
+        </div>
+
+        <!-- Export -->
+        <div class="panel-card">
+          <div class="panel-title">匯出設定</div>
+
+          <div class="size-row">
+            <div class="size-input-wrap">
+              <label>寬度 (px)</label>
+              <input type="number" id="out-width" value="400" min="50" max="4000" oninput="updateSizeEstimate()">
+            </div>
+            <div class="size-input-wrap">
+              <label>高度 (px)</label>
+              <input type="number" id="out-height" value="400" min="50" max="4000" oninput="updateSizeEstimate()">
+            </div>
+          </div>
+
+          <div style="margin-bottom:10px">
+            <div class="control-label" style="margin-bottom:6px"><span style="font-size:0.7rem;color:var(--text-dim);font-family:'Space Mono',monospace">格式</span></div>
+            <div class="format-row">
+              <button class="fmt-btn active" onclick="setFormat('jpeg')">JPEG</button>
+              <button class="fmt-btn" onclick="setFormat('png')">PNG</button>
+              <button class="fmt-btn" onclick="setFormat('webp')">WEBP</button>
+            </div>
+          </div>
+
+          <div class="quality-row">
+            <div class="control-label">
+              <span>畫質</span>
+              <span class="control-val" id="quality-val">90%</span>
+            </div>
+            <input type="range" id="quality-slider" min="10" max="100" step="5" value="90" oninput="onQuality(this.value)">
+          </div>
+
+          <div class="filesize-display" id="filesize-display">預估大小：<span>— KB</span></div>
+
+          <button class="btn-primary" onclick="downloadCropped()" style="margin-top:14px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下載裁切圖片
+          </button>
+          <button class="btn-secondary" onclick="reupload()">重新上傳</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+<script>
+let cropper = null;
+let currentFormat = 'jpeg';
+let currentQuality = 0.9;
+let flipHState = false;
+let flipVState = false;
+let currentRatio = { x: 1, y: 1 };
+
+const uploadZone = document.getElementById('upload-zone');
+const editorZone = document.getElementById('editor-zone');
+const fileInput = document.getElementById('file-input');
+const cropImage = document.getElementById('crop-image');
+
+// Upload zone events
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadImage(file);
+});
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadImage(e.target.files[0]);
+});
+
+function loadImage(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    cropImage.src = ev.target.result;
+    uploadZone.classList.add('hidden');
+    editorZone.classList.add('visible');
+    setStep(2);
+
+    if (cropper) { cropper.destroy(); cropper = null; }
+    flipHState = false; flipVState = false;
+    document.getElementById('zoom-slider').value = 1;
+    document.getElementById('rotate-slider').value = 0;
+    document.getElementById('zoom-val').textContent = '1.0×';
+    document.getElementById('rotate-val').textContent = '0°';
+
+    setTimeout(() => {
+      cropper = new Cropper(cropImage, {
+        aspectRatio: 1,
+        viewMode: 1,
+        autoCropArea: 0.8,
+        preview: [document.getElementById('preview-circle'), document.getElementById('preview-square')],
+        ready() { updateSizeEstimate(); },
+        cropend() { updateSizeEstimate(); },
+        zoom(e) {
+          const v = Math.round(e.detail.ratio * 100) / 100;
+          document.getElementById('zoom-slider').value = v;
+          document.getElementById('zoom-val').textContent = v.toFixed(1) + '×';
+        }
+      });
+    }, 100);
+  };
+  reader.readAsDataURL(file);
+}
+
+function setStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById('step'+i).classList.toggle('active', i === n);
+  });
+}
+
+function setRatio(x, y, label) {
+  document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  currentRatio = { x, y };
+  if (cropper) cropper.setAspectRatio(isNaN(x) ? NaN : x/y);
+  // sync height if not free
+  if (!isNaN(x) && !isNaN(y)) {
+    const w = parseInt(document.getElementById('out-width').value) || 400;
+    document.getElementById('out-height').value = Math.round(w * y / x);
+  }
+  updateSizeEstimate();
+}
+
+function onZoom(val) {
+  document.getElementById('zoom-val').textContent = parseFloat(val).toFixed(1) + '×';
+  if (cropper) cropper.zoomTo(parseFloat(val));
+}
+
+function onRotate(val) {
+  document.getElementById('rotate-val').textContent = val + '°';
+  if (cropper) cropper.rotateTo(parseFloat(val));
+}
+
+function rotateLeft() {
+  if (cropper) { cropper.rotate(-90); updateSizeEstimate(); }
+}
+function rotateRight() {
+  if (cropper) { cropper.rotate(90); updateSizeEstimate(); }
+}
+function flipH() {
+  flipHState = !flipHState;
+  if (cropper) cropper.scaleX(flipHState ? -1 : 1);
+}
+function flipV() {
+  flipVState = !flipVState;
+  if (cropper) cropper.scaleY(flipVState ? -1 : 1);
+}
+function resetCrop() {
+  if (cropper) {
+    cropper.reset();
+    flipHState = false; flipVState = false;
+    document.getElementById('zoom-slider').value = 1;
+    document.getElementById('rotate-slider').value = 0;
+    document.getElementById('zoom-val').textContent = '1.0×';
+    document.getElementById('rotate-val').textContent = '0°';
+  }
+}
+
+function setFormat(fmt) {
+  currentFormat = fmt;
+  document.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  const qualitySlider = document.getElementById('quality-slider');
+  qualitySlider.disabled = fmt === 'png';
+  updateSizeEstimate();
+}
+
+function onQuality(val) {
+  currentQuality = val / 100;
+  document.getElementById('quality-val').textContent = val + '%';
+  updateSizeEstimate();
+}
+
+function updateSizeEstimate() {
+  if (!cropper) return;
+  const w = parseInt(document.getElementById('out-width').value) || 400;
+  const h = parseInt(document.getElementById('out-height').value) || 400;
+  // rough estimate
+  const pixels = w * h;
+  let kb;
+  if (currentFormat === 'png') {
+    kb = (pixels * 3 / 1024) * 0.4;
+  } else if (currentFormat === 'webp') {
+    kb = (pixels * 3 / 1024) * currentQuality * 0.25;
+  } else {
+    kb = (pixels * 3 / 1024) * currentQuality * 0.35;
+  }
+  const display = kb > 1024 ? (kb/1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
+  document.getElementById('filesize-display').innerHTML = `預估大小：<span>${display}</span>`;
+  setStep(3);
+}
+
+function downloadCropped() {
+  if (!cropper) return;
+  const w = parseInt(document.getElementById('out-width').value) || 400;
+  const h = parseInt(document.getElementById('out-height').value) || 400;
+  const canvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+  if (!canvas) { showToast('裁切失敗，請重試'); return; }
+  const mimeMap = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `photo_${w}x${h}.${currentFormat === 'jpeg' ? 'jpg' : currentFormat}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    const realKb = (blob.size / 1024).toFixed(1);
+    const realDisplay = blob.size > 1048576 ? (blob.size/1048576).toFixed(1)+' MB' : realKb+' KB';
+    document.getElementById('filesize-display').innerHTML = `實際大小：<span>${realDisplay}</span>`;
+    showToast('✓ 下載成功！');
+  }, mimeMap[currentFormat], currentFormat === 'png' ? 1 : currentQuality);
+}
+
+function reupload() {
+  uploadZone.classList.remove('hidden');
+  editorZone.classList.remove('visible');
+  if (cropper) { cropper.destroy(); cropper = null; }
+  fileInput.value = '';
+  setStep(1);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Sync width/height when ratio is set
+document.getElementById('out-width').addEventListener('input', function() {
+  if (!isNaN(currentRatio.x) && !isNaN(currentRatio.y)) {
+    const w = parseInt(this.value) || 400;
+    document.getElementById('out-height').value = Math.round(w * currentRatio.y / currentRatio.x);
+  }
+  updateSizeEstimate();
+});
+</script>
+</body>
+</html>
