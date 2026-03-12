@@ -6,234 +6,117 @@
 <title>證件照裁切工具</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<!-- TensorFlow.js + Body Segmentation + MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.11.0/dist/tf-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.11.0/dist/tf-backend-webgl.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.1/dist/body-segmentation.min.js"></script>
+
 <style>
   :root {
-    --bg: #0f0f13;
-    --surface: #1a1a22;
-    --surface2: #24242f;
-    --border: #32323f;
-    --accent: #d4f54a;
-    --accent-dim: #a8c23a;
-    --accent2: #6ef7cb;
-    --red: #ff6b6b;
-    --text: #eeeef5;
-    --muted: #7a7a8e;
-    --radius: 10px;
+    --bg: #0f0f13; --surface: #1a1a22; --surface2: #24242f;
+    --border: #32323f; --accent: #d4f54a; --accent-dim: #a8c23a;
+    --accent2: #6ef7cb; --red: #ff6b6b; --text: #eeeef5;
+    --muted: #7a7a8e; --radius: 10px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Noto Sans TC', sans-serif;
-    min-height: 100vh;
-    padding: 24px 16px 60px;
-  }
+  body { background: var(--bg); color: var(--text); font-family: 'Noto Sans TC', sans-serif; min-height: 100vh; padding: 24px 16px 60px; }
   .header { text-align: center; margin-bottom: 32px; }
-  .header h1 {
-    font-family: 'Space Mono', monospace;
-    font-size: clamp(1.4rem, 4vw, 2rem);
-    letter-spacing: -0.02em;
-    color: var(--accent);
-  }
+  .header h1 { font-family: 'Space Mono', monospace; font-size: clamp(1.4rem,4vw,2rem); letter-spacing: -0.02em; color: var(--accent); }
   .header p { color: var(--muted); font-size: 0.88rem; margin-top: 6px; }
   .app { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 20px;
-  }
-  .card-title {
-    font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--muted);
-    margin-bottom: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  }
-  .card-title::before {
-    content: ''; display: inline-block; width: 8px; height: 8px;
-    background: var(--accent); border-radius: 50%; flex-shrink: 0;
-  }
 
-  /* Upload */
-  .upload-zone {
-    border: 2px dashed var(--border); border-radius: var(--radius);
-    padding: 48px 24px; text-align: center; cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-  }
-  .upload-zone:hover, .upload-zone.dragover {
-    border-color: var(--accent); background: rgba(212,245,74,0.04);
-  }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .card-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card-title::before { content: ''; display: inline-block; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; flex-shrink: 0; }
+
+  .upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 48px 24px; text-align: center; cursor: pointer; transition: border-color .2s, background .2s; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: rgba(212,245,74,.04); }
   .upload-icon { font-size: 3rem; margin-bottom: 12px; display: block; }
   .upload-zone h3 { font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
-  .upload-zone p { font-size: 0.82rem; color: var(--muted); }
+  .upload-zone p { font-size: .82rem; color: var(--muted); }
   #fileInput { display: none; }
 
-  /* Presets */
-  .presets { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  @media (min-width: 480px) { .presets { grid-template-columns: repeat(4, 1fr); } }
-  .preset-btn {
-    background: var(--surface2); border: 2px solid var(--border);
-    border-radius: var(--radius); padding: 14px 10px; cursor: pointer;
-    text-align: center; transition: all 0.18s; color: var(--text);
-    font-family: 'Noto Sans TC', sans-serif;
-  }
-  .preset-btn:hover { border-color: var(--accent); background: rgba(212,245,74,0.06); }
-  .preset-btn.active { border-color: var(--accent); background: rgba(212,245,74,0.1); }
-  .preset-btn .preset-name { font-size: 0.9rem; font-weight: 700; display: block; margin-bottom: 4px; }
-  .preset-btn .preset-size { font-size: 0.72rem; color: var(--muted); display: block; }
+  .presets { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+  @media(min-width:480px){ .presets { grid-template-columns: repeat(4,1fr); } }
+  .preset-btn { background: var(--surface2); border: 2px solid var(--border); border-radius: var(--radius); padding: 14px 10px; cursor: pointer; text-align: center; transition: all .18s; color: var(--text); font-family: 'Noto Sans TC', sans-serif; }
+  .preset-btn:hover { border-color: var(--accent); background: rgba(212,245,74,.06); }
+  .preset-btn.active { border-color: var(--accent); background: rgba(212,245,74,.1); }
+  .preset-btn .preset-name { font-size: .9rem; font-weight: 700; display: block; margin-bottom: 4px; }
+  .preset-btn .preset-size { font-size: .72rem; color: var(--muted); display: block; }
   .preset-btn.active .preset-name { color: var(--accent); }
   .preset-btn.active .preset-size { color: var(--accent-dim); }
 
-  /* Crop */
   .crop-section { display: none; }
   .crop-section.visible { display: block; }
   .crop-container { width: 100%; max-height: 500px; background: #111; border-radius: var(--radius); overflow: hidden; }
   .crop-container img { display: block; max-width: 100%; }
-  .controls-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
-  .ctrl-btn {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; color: var(--text); padding: 8px 14px;
-    font-size: 0.82rem; cursor: pointer; display: flex; align-items: center;
-    gap: 6px; transition: border-color 0.15s, background 0.15s;
-    font-family: 'Noto Sans TC', sans-serif; white-space: nowrap;
-  }
-  .ctrl-btn:hover { border-color: var(--accent2); background: rgba(110,247,203,0.06); }
-  .ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* BG panel */
-  .bg-panel {
-    margin-top: 14px; padding: 14px 16px;
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: var(--radius); display: flex;
-    flex-wrap: wrap; gap: 12px; align-items: center;
-  }
-  .bg-panel-label { font-size: 0.82rem; color: var(--muted); flex-shrink: 0; }
+  .controls-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+  .ctrl-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 8px 14px; font-size: .82rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: border-color .15s, background .15s; font-family: 'Noto Sans TC', sans-serif; white-space: nowrap; }
+  .ctrl-btn:hover { border-color: var(--accent2); background: rgba(110,247,203,.06); }
+  .ctrl-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .bg-panel { margin-top: 14px; padding: 14px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .bg-panel-label { font-size: .82rem; color: var(--muted); flex-shrink: 0; }
   .swatch-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .swatch {
-    width: 28px; height: 28px; border-radius: 50%;
-    border: 2px solid var(--border); cursor: pointer;
-    transition: border-color 0.15s, transform 0.15s; flex-shrink: 0;
-  }
+  .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; transition: border-color .15s, transform .15s; flex-shrink: 0; }
   .swatch:hover { transform: scale(1.15); }
-  .swatch.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(212,245,74,0.4); }
-  .swatch-white { background: #ffffff; }
+  .swatch.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(212,245,74,.4); }
+  .swatch-white { background: #fff; }
   .swatch-light { background: #dce8f0; }
-  .swatch-gray  { background: #cccccc; }
+  .swatch-gray  { background: #ccc; }
   .swatch-custom { background: linear-gradient(135deg,#f00,#0f0,#00f); position: relative; overflow: hidden; }
   #customColorInput { position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; top: 0; left: 0; }
 
-  .btn-rmbg {
-    background: transparent; border: 1.5px solid var(--accent2);
-    color: var(--accent2); border-radius: 8px; padding: 8px 16px;
-    font-size: 0.82rem; font-weight: 700; cursor: pointer;
-    font-family: 'Noto Sans TC', sans-serif; transition: background 0.15s;
-    display: flex; align-items: center; gap: 7px; white-space: nowrap;
-  }
-  .btn-rmbg:hover { background: rgba(110,247,203,0.08); }
-  .btn-rmbg:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-rmbg { background: transparent; border: 1.5px solid var(--accent2); color: var(--accent2); border-radius: 8px; padding: 8px 16px; font-size: .82rem; font-weight: 700; cursor: pointer; font-family: 'Noto Sans TC', sans-serif; transition: background .15s; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .btn-rmbg:hover { background: rgba(110,247,203,.08); }
+  .btn-rmbg:disabled { opacity: .4; cursor: not-allowed; }
 
-  .progress-bar-wrap {
-    width: 100%; background: var(--border); border-radius: 30px;
-    height: 6px; overflow: hidden; display: none; flex-basis: 100%;
-  }
+  .progress-bar-wrap { width: 100%; background: var(--border); border-radius: 30px; height: 6px; overflow: hidden; display: none; flex-basis: 100%; }
   .progress-bar-wrap.visible { display: block; }
-  .progress-bar {
-    height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent));
-    border-radius: 30px; width: 0%; transition: width 0.4s;
-  }
-  .progress-text {
-    font-size: 0.72rem; color: var(--accent2); flex-basis: 100%;
-    display: none; font-family: 'Space Mono', monospace;
-  }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: 30px; width: 0%; transition: width .4s; }
+  .progress-text { font-size: .72rem; color: var(--accent2); flex-basis: 100%; display: none; font-family: 'Space Mono', monospace; }
   .progress-text.visible { display: block; }
 
-  /* Settings */
   .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  @media (min-width: 600px) { .settings-grid { grid-template-columns: 1fr 1fr 1fr; } }
-  .field label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.04em; }
-  .field select, .field input[type=number] {
-    width: 100%; background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; color: var(--text); padding: 9px 12px;
-    font-size: 0.85rem; outline: none; font-family: 'Noto Sans TC', sans-serif;
-    transition: border-color 0.15s;
-  }
+  @media(min-width:600px){ .settings-grid { grid-template-columns: 1fr 1fr 1fr; } }
+  .field label { display: block; font-size: .75rem; color: var(--muted); margin-bottom: 6px; letter-spacing: .04em; }
+  .field select, .field input[type=number] { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 9px 12px; font-size: .85rem; outline: none; font-family: 'Noto Sans TC', sans-serif; transition: border-color .15s; }
   .field select:focus, .field input[type=number]:focus { border-color: var(--accent); }
   .field input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
 
-  /* Preview */
   .preview-section { display: none; }
   .preview-section.visible { display: block; }
   .preview-wrap { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin-top: 18px; }
-  .preview-box {
-    border-radius: 4px; overflow: hidden; flex-shrink: 0;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5); border: 1px solid var(--border);
-    background-image: linear-gradient(45deg,#444 25%,transparent 25%),
-                      linear-gradient(-45deg,#444 25%,transparent 25%),
-                      linear-gradient(45deg,transparent 75%,#444 75%),
-                      linear-gradient(-45deg,transparent 75%,#444 75%);
-    background-size: 12px 12px;
-    background-position: 0 0, 0 6px, 6px -6px, -6px 0;
-    background-color: #2a2a2a;
-  }
+  .preview-box { border-radius: 4px; overflow: hidden; flex-shrink: 0; box-shadow: 0 4px 20px rgba(0,0,0,.5); border: 1px solid var(--border); background-image: linear-gradient(45deg,#444 25%,transparent 25%), linear-gradient(-45deg,#444 25%,transparent 25%), linear-gradient(45deg,transparent 75%,#444 75%), linear-gradient(-45deg,transparent 75%,#444 75%); background-size: 12px 12px; background-position: 0 0,0 6px,6px -6px,-6px 0; background-color: #2a2a2a; }
   .preview-box canvas { display: block; }
   .preview-info { flex: 1; min-width: 200px; }
-  .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.83rem; }
+  .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .83rem; }
   .info-row:last-child { border-bottom: none; }
   .info-label { color: var(--muted); }
-  .info-val { font-family: 'Space Mono', monospace; color: var(--accent2); font-size: 0.8rem; }
+  .info-val { font-family: 'Space Mono', monospace; color: var(--accent2); font-size: .8rem; }
 
-  .size-badge {
-    display: inline-block; background: rgba(212,245,74,0.12);
-    border: 1px solid rgba(212,245,74,0.3); border-radius: 20px;
-    padding: 2px 10px; font-size: 0.72rem; color: var(--accent);
-    font-family: 'Space Mono', monospace; margin-left: 6px; vertical-align: middle;
-  }
+  .size-badge { display: inline-block; background: rgba(212,245,74,.12); border: 1px solid rgba(212,245,74,.3); border-radius: 20px; padding: 2px 10px; font-size: .72rem; color: var(--accent); font-family: 'Space Mono', monospace; margin-left: 6px; vertical-align: middle; }
 
-  .btn-download {
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    width: 100%; background: var(--accent); color: #111; border: none;
-    border-radius: var(--radius); padding: 15px 24px; font-size: 1rem;
-    font-weight: 700; cursor: pointer; font-family: 'Noto Sans TC', sans-serif;
-    letter-spacing: 0.04em; transition: background 0.15s, transform 0.1s; margin-top: 16px;
-  }
+  .btn-download { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; background: var(--accent); color: #111; border: none; border-radius: var(--radius); padding: 15px 24px; font-size: 1rem; font-weight: 700; cursor: pointer; font-family: 'Noto Sans TC', sans-serif; letter-spacing: .04em; transition: background .15s, transform .1s; margin-top: 16px; }
   .btn-download:hover { background: #e5ff60; transform: translateY(-1px); }
   .btn-download:active { transform: translateY(0); }
 
-  .file-size-estimate {
-    text-align: center; font-size: 0.8rem; color: var(--muted);
-    margin-top: 10px; font-family: 'Space Mono', monospace;
-    padding: 8px 12px; background: var(--surface2);
-    border-radius: 8px; border: 1px solid var(--border);
-  }
-  .file-size-estimate span { color: var(--accent); font-weight: 700; font-size: 0.9rem; }
+  .file-size-estimate { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 10px; font-family: 'Space Mono', monospace; padding: 8px 12px; background: var(--surface2); border-radius: 8px; border: 1px solid var(--border); display: none; }
+  .file-size-estimate span { color: var(--accent); font-weight: 700; font-size: .9rem; }
 
-  /* Steps */
-  .steps { display: flex; gap: 0; margin-bottom: 4px; }
-  .step {
-    flex: 1; text-align: center; padding: 8px 4px;
-    font-size: 0.72rem; color: var(--muted);
-    border-bottom: 2px solid var(--border); letter-spacing: 0.04em;
-    transition: color 0.2s, border-color 0.2s;
-  }
+  .steps { display: flex; margin-bottom: 4px; }
+  .step { flex: 1; text-align: center; padding: 8px 4px; font-size: .72rem; color: var(--muted); border-bottom: 2px solid var(--border); letter-spacing: .04em; transition: color .2s, border-color .2s; }
   .step.active { color: var(--accent); border-color: var(--accent); }
   .step.done   { color: var(--accent2); border-color: var(--accent2); }
 
-  /* Toast */
-  .toast {
-    position: fixed; bottom: 24px; left: 50%;
-    transform: translateX(-50%) translateY(80px);
-    background: var(--surface2); border: 1px solid var(--accent); color: var(--accent);
-    padding: 10px 22px; border-radius: 30px; font-size: 0.83rem;
-    pointer-events: none; transition: transform 0.3s; z-index: 9999; white-space: nowrap;
-  }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--surface2); border: 1px solid var(--accent); color: var(--accent); padding: 10px 22px; border-radius: 30px; font-size: .83rem; pointer-events: none; transition: transform .3s; z-index: 9999; white-space: nowrap; }
   .toast.show { transform: translateX(-50%) translateY(0); }
   .toast.error { border-color: var(--red); color: var(--red); }
 
   @keyframes spin { to { transform: rotate(360deg); } }
-  .spinner {
-    display: inline-block; width: 14px; height: 14px;
-    border: 2px solid transparent; border-top-color: currentColor;
-    border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0;
-  }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -244,7 +127,6 @@
 </div>
 
 <div class="app">
-
   <div class="steps">
     <div class="step active" id="step1">① 上傳</div>
     <div class="step" id="step2">② 規格＆裁切</div>
@@ -267,20 +149,16 @@
     <div class="card-title">選擇照片規格</div>
     <div class="presets">
       <button class="preset-btn active" data-w="35" data-h="45" data-px="413" onclick="setPreset(this)">
-        <span class="preset-name">2吋大頭照</span>
-        <span class="preset-size">3.5 × 4.5 cm</span>
+        <span class="preset-name">2吋大頭照</span><span class="preset-size">3.5 × 4.5 cm</span>
       </button>
       <button class="preset-btn" data-w="47" data-h="42" data-px="554" onclick="setPreset(this)">
-        <span class="preset-name">2吋半身照</span>
-        <span class="preset-size">4.7 × 4.2 cm</span>
+        <span class="preset-name">2吋半身照</span><span class="preset-size">4.7 × 4.2 cm</span>
       </button>
       <button class="preset-btn" data-w="35" data-h="28" data-px="413" onclick="setPreset(this)">
-        <span class="preset-name">1吋證件照</span>
-        <span class="preset-size">3.5 × 2.8 cm</span>
+        <span class="preset-name">1吋證件照</span><span class="preset-size">3.5 × 2.8 cm</span>
       </button>
       <button class="preset-btn" data-w="50" data-h="50" data-px="590" onclick="setPreset(this)">
-        <span class="preset-name">5 × 5</span>
-        <span class="preset-size">5.0 × 5.0 cm</span>
+        <span class="preset-name">5 × 5</span><span class="preset-size">5.0 × 5.0 cm</span>
       </button>
     </div>
   </div>
@@ -306,13 +184,12 @@
       </button>
     </div>
 
-    <!-- BG removal -->
     <div class="bg-panel">
       <span class="bg-panel-label">🎨 背景顏色：</span>
       <div class="swatch-row">
-        <div class="swatch swatch-white active" title="白色"  onclick="selectBg(this,'#ffffff')"></div>
-        <div class="swatch swatch-light"        title="淺藍"  onclick="selectBg(this,'#dce8f0')"></div>
-        <div class="swatch swatch-gray"         title="淺灰"  onclick="selectBg(this,'#cccccc')"></div>
+        <div class="swatch swatch-white active" title="白色" onclick="selectBg(this,'#ffffff')"></div>
+        <div class="swatch swatch-light"        title="淺藍" onclick="selectBg(this,'#dce8f0')"></div>
+        <div class="swatch swatch-gray"         title="淺灰" onclick="selectBg(this,'#cccccc')"></div>
         <div class="swatch swatch-custom" title="自訂顏色">
           <input type="color" id="customColorInput" value="#ffffff" oninput="onCustomColor(this)">
         </div>
@@ -365,45 +242,31 @@
     </div>
 
     <button class="btn-download" onclick="downloadImage()">⬇ 下載照片</button>
-    <div class="file-size-estimate" id="fileSizeEstimate" style="display:none">
+    <div class="file-size-estimate" id="fileSizeEstimate">
       預估下載大小：<span id="fileSizeVal">—</span>
     </div>
   </div>
-
 </div>
 
 <div class="toast" id="toast"></div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <script>
-/* ─── globals ─── */
-let cropper          = null;
-let scaleX           = 1, scaleY = 1;
-let curW             = 35, curH = 45;
-let curName          = '2吋大頭照', curSizeCm = '3.5 × 4.5 cm';
-let croppedBlob      = null;
-let bgRemovedBlob    = null;
-let useRemovedBg     = false;
-let bgColor          = '#ffffff';
-let imglyReady       = false;
+/* ── globals ── */
+let cropper       = null;
+let scaleX        = 1, scaleY = 1;
+let curW          = 35, curH = 45;
+let curName       = '2吋大頭照', curSizeCm = '3.5 × 4.5 cm';
+let croppedBlob   = null;
+let bgColor       = '#ffffff';
+let useRemovedBg  = false;
+// stores raw RGBA ImageData of the person with transparent bg (result of segmentation)
+let maskedImageData = null;
+// cache of the last cropped canvas (for re-compositing when bg color changes)
+let lastCroppedCanvas = null;
+let segmenter     = null;
 
-/* ─── lazy-load @imgly/background-removal via esm.sh ─── */
-async function loadImgly() {
-  if (imglyReady) return true;
-  try {
-    const mod = await import('https://esm.sh/@imgly/background-removal@1.4.5');
-    window._imglyRemoveBg = mod.removeBackground;
-    imglyReady = true;
-    return true;
-  } catch (e) {
-    console.error('imgly load error', e);
-    return false;
-  }
-}
-loadImgly(); // preload in background
-
-/* ─── Upload ─── */
+/* ── Upload ── */
 const uploadZone = document.getElementById('uploadZone');
 const fileInput  = document.getElementById('fileInput');
 uploadZone.addEventListener('click', () => fileInput.click());
@@ -417,7 +280,7 @@ fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fi
 
 function loadFile(file) {
   if (!file.type.startsWith('image/')) { showToast('⚠️ 請上傳圖片檔案', true); return; }
-  bgRemovedBlob = null; useRemovedBg = false;
+  maskedImageData = null; useRemovedBg = false; lastCroppedCanvas = null;
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById('cropImage').src = e.target.result;
@@ -429,7 +292,7 @@ function loadFile(file) {
   reader.readAsDataURL(file);
 }
 
-/* ─── Cropper ─── */
+/* ── Cropper ── */
 function initCropper() {
   if (cropper) { cropper.destroy(); cropper = null; }
   scaleX = 1; scaleY = 1;
@@ -442,7 +305,7 @@ function initCropper() {
 function flipH() { scaleX *= -1; cropper.scaleX(scaleX); }
 function flipV() { scaleY *= -1; cropper.scaleY(scaleY); }
 
-/* ─── Preset ─── */
+/* ── Preset ── */
 function setPreset(btn) {
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -452,10 +315,10 @@ function setPreset(btn) {
   document.getElementById('currentPresetLabel').textContent = curName + ' (' + curSizeCm + ')';
   document.getElementById('outWidth').value = btn.dataset.px || 413;
   if (cropper) { cropper.setAspectRatio(curW / curH); cropper.reset(); scaleX = 1; scaleY = 1; }
-  bgRemovedBlob = null; useRemovedBg = false;
+  maskedImageData = null; useRemovedBg = false; lastCroppedCanvas = null;
 }
 
-/* ─── Background color ─── */
+/* ── Background color ── */
 function selectBg(el, color) {
   document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
   el.classList.add('active');
@@ -469,7 +332,23 @@ function onCustomColor(input) {
   if (document.getElementById('previewCard').classList.contains('visible')) updatePreview();
 }
 
-/* ─── AI Remove Background ─── */
+/* ── Load segmenter (lazy, cached) ── */
+async function getSegmenter() {
+  if (segmenter) return segmenter;
+  await tf.setBackend('webgl');
+  await tf.ready();
+  segmenter = await bodySegmentation.createSegmenter(
+    bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
+    {
+      runtime: 'mediapipe',
+      solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747',
+      modelType: 'general'
+    }
+  );
+  return segmenter;
+}
+
+/* ── AI Remove Background ── */
 async function removeBackground() {
   if (!cropper) { showToast('⚠️ 請先上傳照片', true); return; }
 
@@ -482,53 +361,55 @@ async function removeBackground() {
   btn.innerHTML = '<span class="spinner"></span> 載入 AI 模型…';
   progressWrap.classList.add('visible');
   progressText.classList.add('visible');
-  progressBar.style.width = '5%';
-  progressText.textContent = '正在載入 AI 套件（首次約 30 秒）…';
-
-  const ok = await loadImgly();
-  if (!ok) {
-    btn.disabled = false;
-    btn.innerHTML = '✨ AI 自動去背景';
-    progressWrap.classList.remove('visible');
-    progressText.classList.remove('visible');
-    showToast('❌ 無法載入 AI 模型，請確認網路連線', true);
-    return;
-  }
-
-  btn.innerHTML = '<span class="spinner"></span> AI 去背景中…';
-  progressBar.style.width = '25%';
-  progressText.textContent = '正在辨識照片輪廓…';
-
-  const w = parseInt(document.getElementById('outWidth').value) || 413;
-  const h = Math.round(w / (curW / curH));
-  const srcCanvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
+  progressBar.style.width = '10%';
+  progressText.textContent = '初始化 MediaPipe 模型（首次約 10 秒）…';
 
   try {
-    const inputBlob = await new Promise(res => srcCanvas.toBlob(res, 'image/png'));
+    const seg = await getSegmenter();
 
     progressBar.style.width = '50%';
+    progressText.textContent = '辨識人物輪廓中…';
 
-    const resultBlob = await window._imglyRemoveBg(inputBlob, {
-      publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.5/dist/',
-      progress: (key, cur, total) => {
-        if (total) {
-          const pct = Math.min(50 + Math.round((cur / total) * 45), 95);
-          progressBar.style.width = pct + '%';
-          if (key === 'fetch:model')
-            progressText.textContent = '下載模型… ' + Math.round(cur/1024) + ' / ' + Math.round(total/1024) + ' KB';
-          else if (key === 'compute:inference')
-            progressText.textContent = '辨識輪廓中…';
-        }
-      }
+    const w = parseInt(document.getElementById('outWidth').value) || 413;
+    const h = Math.round(w / (curW / curH));
+    const srcCanvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
+    lastCroppedCanvas = srcCanvas;
+
+    // Run segmentation
+    const people = await seg.segmentPeople(srcCanvas, {
+      flipHorizontal: false,
+      multiSegmentation: false,
+      segmentBodyParts: false
     });
 
-    bgRemovedBlob = resultBlob;
-    useRemovedBg  = true;
+    if (!people || people.length === 0) {
+      throw new Error('未偵測到人物，請確認照片清晰且有完整人臉');
+    }
+
+    progressBar.style.width = '80%';
+    progressText.textContent = '套用遮罩…';
+
+    // Get raw mask ImageData  (R channel = person probability 0–255)
+    const maskData = await people[0].mask.toImageData();
+
+    // Get source pixels
+    const srcCtx = srcCanvas.getContext('2d');
+    const srcPixels = srcCtx.getImageData(0, 0, w, h);
+
+    // Apply mask: set alpha = mask R value
+    for (let i = 0; i < w * h; i++) {
+      srcPixels.data[i * 4 + 3] = maskData.data[i * 4];
+    }
+
+    maskedImageData = srcPixels;   // RGBA with transparent bg
+    useRemovedBg    = true;
+
     progressBar.style.width = '100%';
     progressText.textContent = '✅ 去背景完成！';
     btn.disabled = false;
-    btn.innerHTML = '✅ 已去背景';
+    btn.innerHTML = '✅ 重新去背景';
 
+    // Show preview immediately
     triggerPreview();
 
     setTimeout(() => {
@@ -542,18 +423,49 @@ async function removeBackground() {
     btn.innerHTML = '✨ AI 自動去背景';
     progressWrap.classList.remove('visible');
     progressText.classList.remove('visible');
-    showToast('❌ 去背景失敗：' + err.message, true);
+    showToast('❌ ' + err.message, true);
   }
 }
 
-/* ─── Confirm crop ─── */
+/* ── Compose final canvas (bg + masked person) ── */
+function composeFinalCanvas(w, h) {
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  if (useRemovedBg && maskedImageData) {
+    // Fill background color
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, w, h);
+
+    // Draw masked person on top
+    const tmp = document.createElement('canvas');
+    tmp.width = w; tmp.height = h;
+    tmp.getContext('2d').putImageData(maskedImageData, 0, 0);
+    ctx.drawImage(tmp, 0, 0);
+  } else {
+    // No bg removal — just draw crop
+    if (lastCroppedCanvas) {
+      ctx.drawImage(lastCroppedCanvas, 0, 0, w, h);
+    }
+  }
+  return canvas;
+}
+
+/* ── Confirm crop → show preview ── */
 function triggerPreview() {
   if (!cropper) return;
   const w = parseInt(document.getElementById('outWidth').value) || 413;
   const h = Math.round(w / (curW / curH));
-  const canvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
-  if (!canvas) { showToast('⚠️ 請先上傳照片', true); return; }
-  renderPreview(canvas, w, h);
+
+  if (!useRemovedBg) {
+    const canvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
+    if (!canvas) { showToast('⚠️ 請先上傳照片', true); return; }
+    lastCroppedCanvas = canvas;
+  }
+
+  const final = composeFinalCanvas(w, h);
+  renderPreview(final, w, h);
   document.getElementById('previewCard').classList.add('visible');
   setStep(3);
   setTimeout(() => document.getElementById('previewCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
@@ -563,76 +475,70 @@ function updatePreview() {
   if (!cropper || !document.getElementById('previewCard').classList.contains('visible')) return;
   const w = parseInt(document.getElementById('outWidth').value) || 413;
   const h = Math.round(w / (curW / curH));
-  const canvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
-  if (canvas) renderPreview(canvas, w, h);
+
+  if (!useRemovedBg) {
+    const canvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
+    if (canvas) { lastCroppedCanvas = canvas; }
+  }
+
+  // If size changed and bg was removed, we need to re-run segmentation
+  if (useRemovedBg && maskedImageData &&
+      (maskedImageData.width !== w || maskedImageData.height !== h)) {
+    // Reset and ask user to re-run
+    maskedImageData = null; useRemovedBg = false;
+    document.getElementById('rmbgBtn').innerHTML = '✨ AI 自動去背景';
+    showToast('⚠️ 輸出尺寸變更，請重新去背景');
+  }
+
+  const final = composeFinalCanvas(w, h);
+  renderPreview(final, w, h);
 }
 
-/* ─── Render ─── */
-function renderPreview(srcCanvas, w, h) {
+/* ── Render preview ── */
+function renderPreview(finalCanvas, w, h) {
   const fmt     = document.getElementById('formatSelect').value;
   const quality = parseInt(document.getElementById('qualityRange').value) / 100;
   const ext     = fmt === 'image/jpeg' ? 'JPG' : fmt === 'image/png' ? 'PNG' : 'WEBP';
 
-  const finalCanvas = document.createElement('canvas');
-  finalCanvas.width = w; finalCanvas.height = h;
-  const ctx = finalCanvas.getContext('2d');
+  // Small display preview
+  const dW = Math.min(w, 180);
+  const dH = Math.round(dW * h / w);
+  const pc  = document.getElementById('previewCanvas');
+  pc.width = dW; pc.height = dH;
+  pc.getContext('2d').drawImage(finalCanvas, 0, 0, dW, dH);
 
-  const doRender = () => {
-    // small preview canvas
-    const dW = Math.min(w, 180);
-    const dH = Math.round(dW * h / w);
-    const pc = document.getElementById('previewCanvas');
-    pc.width = dW; pc.height = dH;
-    pc.getContext('2d').drawImage(finalCanvas, 0, 0, dW, dH);
+  // Estimate file size from dataURL
+  const dataUrl = finalCanvas.toDataURL(fmt, quality);
+  const bytes   = Math.round(dataUrl.split(',')[1].length * 0.75);
+  const sizeStr = formatBytes(bytes);
 
-    // estimate size
-    const dataUrl = finalCanvas.toDataURL(fmt, quality);
-    const bytes   = Math.round(dataUrl.split(',')[1].length * 0.75);
-    const sizeStr = formatBytes(bytes);
-    const cmW     = (w / 300 * 2.54).toFixed(1);
-    const cmH     = (h / 300 * 2.54).toFixed(1);
+  const cmW = (w / 300 * 2.54).toFixed(1);
+  const cmH = (h / 300 * 2.54).toFixed(1);
 
-    document.getElementById('infoPreset').textContent = curName + ' (' + curSizeCm + ')';
-    document.getElementById('infoPx').textContent     = w + ' × ' + h + ' px';
-    document.getElementById('infoFmt').textContent    = ext + (fmt !== 'image/png' ? ' 品質 ' + Math.round(quality*100) + '%' : '');
-    document.getElementById('infoBg').textContent     = useRemovedBg ? 'AI去背 + ' + bgColor : '原始';
-    document.getElementById('infoSize').textContent   = sizeStr;
-    document.getElementById('infoCm').textContent     = cmW + ' × ' + cmH + ' cm';
+  document.getElementById('infoPreset').textContent = curName + ' (' + curSizeCm + ')';
+  document.getElementById('infoPx').textContent     = w + ' × ' + h + ' px';
+  document.getElementById('infoFmt').textContent    = ext + (fmt !== 'image/png' ? ' 品質 ' + Math.round(quality*100) + '%' : '');
+  document.getElementById('infoBg').textContent     = useRemovedBg ? 'AI去背 + ' + bgColor : '原始';
+  document.getElementById('infoSize').textContent   = sizeStr;
+  document.getElementById('infoCm').textContent     = cmW + ' × ' + cmH + ' cm';
 
-    const fse = document.getElementById('fileSizeEstimate');
-    document.getElementById('fileSizeVal').textContent = sizeStr;
-    fse.style.display = 'block';
+  const fse = document.getElementById('fileSizeEstimate');
+  document.getElementById('fileSizeVal').textContent = sizeStr;
+  fse.style.display = 'block';
 
-    finalCanvas.toBlob(blob => { croppedBlob = blob; }, fmt, quality);
-  };
-
-  if (useRemovedBg && bgRemovedBlob) {
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, w, h);
-    const img = new Image();
-    const url = URL.createObjectURL(bgRemovedBlob);
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      doRender();
-    };
-    img.src = url;
-  } else {
-    ctx.drawImage(srcCanvas, 0, 0, w, h);
-    doRender();
-  }
+  finalCanvas.toBlob(blob => { croppedBlob = blob; }, fmt, quality);
 }
 
 function formatBytes(b) {
-  return b >= 1048576 ? (b/1048576).toFixed(2) + ' MB' : Math.round(b/1024) + ' KB';
+  return b >= 1048576 ? (b / 1048576).toFixed(2) + ' MB' : Math.round(b / 1024) + ' KB';
 }
 
-/* ─── Download ─── */
+/* ── Download ── */
 function downloadImage() {
   if (!croppedBlob) { showToast('⚠️ 請先確認裁切', true); return; }
   const fmt  = document.getElementById('formatSelect').value;
   const ext  = fmt === 'image/jpeg' ? 'jpg' : fmt === 'image/png' ? 'png' : 'webp';
-  const name = curName.replace(/\s/g,'_') + '.' + ext;
+  const name = curName.replace(/\s/g, '_') + '.' + ext;
   const url  = URL.createObjectURL(croppedBlob);
   const a    = document.createElement('a');
   a.href = url; a.download = name; a.click();
@@ -640,20 +546,20 @@ function downloadImage() {
   showToast('✅ 已下載：' + name + '（' + formatBytes(croppedBlob.size) + '）');
 }
 
-/* ─── Steps ─── */
+/* ── Steps ── */
 function setStep(n) {
   for (let i = 1; i <= 3; i++) {
-    document.getElementById('step'+i).className =
+    document.getElementById('step' + i).className =
       'step' + (i < n ? ' done' : i === n ? ' active' : '');
   }
 }
 
-/* ─── Toast ─── */
+/* ── Toast ── */
 function showToast(msg, isError) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show' + (isError ? ' error' : '');
-  setTimeout(() => { t.className = 'toast'; }, 3000);
+  setTimeout(() => { t.className = 'toast'; }, 3500);
 }
 </script>
 </body>
