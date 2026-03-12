@@ -5,619 +5,826 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>證件照裁切工具</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #0b0c10;
-  --surface: #14151a;
-  --surface2: #1e1f27;
-  --border: #2a2b36;
-  --accent: #d4f54a;
-  --accent2: #54f5c8;
-  --text: #eeeef0;
-  --muted: #7a7a8a;
-  --r: 10px;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a22;
+    --surface2: #24242f;
+    --border: #32323f;
+    --accent: #d4f54a;
+    --accent-dim: #a8c23a;
+    --accent2: #6ef7cb;
+    --red: #ff6b6b;
+    --text: #eeeef5;
+    --muted: #7a7a8e;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+  .header { text-align: center; margin-bottom: 32px; }
+  .header h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    letter-spacing: -0.02em;
+    color: var(--accent);
+  }
+  .header p { color: var(--muted); font-size: 0.88rem; margin-top: 6px; }
+  .app { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .card-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .card-title::before {
+    content: '';
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Noto Sans TC', sans-serif;
-  min-height: 100vh;
-}
+  /* Upload */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(212,245,74,0.04);
+  }
+  .upload-icon { font-size: 3rem; margin-bottom: 12px; display: block; }
+  .upload-zone h3 { font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
+  .upload-zone p { font-size: 0.82rem; color: var(--muted); }
+  #fileInput { display: none; }
 
-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 32px;
-  border-bottom: 1px solid var(--border);
-}
-.logo {
-  font-family: 'Space Mono', monospace;
-  font-size: 1.05rem;
-  background: linear-gradient(120deg, var(--accent), var(--accent2));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-header span { color: var(--muted); font-size: .82rem; }
+  /* Presets */
+  .presets { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 480px) { .presets { grid-template-columns: repeat(4, 1fr); } }
+  .preset-btn {
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 10px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.18s;
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+  }
+  .preset-btn:hover { border-color: var(--accent); background: rgba(212,245,74,0.06); }
+  .preset-btn.active { border-color: var(--accent); background: rgba(212,245,74,0.1); }
+  .preset-btn .preset-name { font-size: 0.9rem; font-weight: 700; display: block; margin-bottom: 4px; }
+  .preset-btn .preset-size { font-size: 0.72rem; color: var(--muted); display: block; }
+  .preset-btn.active .preset-name { color: var(--accent); }
+  .preset-btn.active .preset-size { color: var(--accent-dim); }
 
-.app {
-  display: grid;
-  grid-template-columns: 290px 1fr;
-  min-height: calc(100vh - 58px);
-}
+  /* Crop section */
+  .crop-section { display: none; }
+  .crop-section.visible { display: block; }
+  .crop-container {
+    width: 100%;
+    max-height: 500px;
+    background: #111;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .crop-container img { display: block; max-width: 100%; }
+  .controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+    align-items: center;
+  }
+  .ctrl-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 14px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: border-color 0.15s, background 0.15s;
+    font-family: 'Noto Sans TC', sans-serif;
+    white-space: nowrap;
+  }
+  .ctrl-btn:hover { border-color: var(--accent2); background: rgba(110,247,203,0.06); }
+  .ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.sidebar {
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  padding: 24px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  overflow-y: auto;
-}
+  /* BG removal panel */
+  .bg-panel {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+  .bg-panel-label { font-size: 0.82rem; color: var(--muted); flex-shrink: 0; }
 
-.section-label {
-  font-size: .66rem;
-  font-weight: 700;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 10px;
-}
+  /* bg color swatches */
+  .swatch-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .swatch {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+    flex-shrink: 0;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(212,245,74,0.4); }
+  .swatch-white  { background: #ffffff; }
+  .swatch-light  { background: #dce8f0; }
+  .swatch-gray   { background: #cccccc; }
+  .swatch-custom { background: linear-gradient(135deg,#f00,#0f0,#00f); position:relative; overflow:hidden; }
+  #customColorInput {
+    position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; top: 0; left: 0;
+  }
 
-.upload-zone {
-  border: 2px dashed var(--border);
-  border-radius: var(--r);
-  padding: 24px 14px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color .2s, background .2s;
-  position: relative;
-}
-.upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(212,245,74,.04); }
-.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-.upload-icon { font-size: 1.8rem; margin-bottom: 6px; }
-.upload-zone p { font-size: .8rem; color: var(--muted); line-height: 1.6; }
-.upload-zone strong { color: var(--accent); font-size: .88rem; display: block; margin-bottom: 4px; }
+  /* AI remove bg button */
+  .btn-rmbg {
+    background: transparent;
+    border: 1.5px solid var(--accent2);
+    color: var(--accent2);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans TC', sans-serif;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+  }
+  .btn-rmbg:hover { background: rgba(110,247,203,0.08); }
+  .btn-rmbg:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.presets { display: flex; flex-direction: column; gap: 7px; }
-.preset-btn {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: var(--r);
-  padding: 10px 13px;
-  cursor: pointer;
-  transition: border-color .2s, background .2s;
-  color: var(--text);
-  font-family: inherit;
-  text-align: left;
-  width: 100%;
-}
-.preset-btn:hover { border-color: var(--accent); background: rgba(212,245,74,.05); }
-.preset-btn.active { border-color: var(--accent); background: rgba(212,245,74,.08); }
-.preset-thumb {
-  flex-shrink: 0;
-  background: var(--accent);
-  border-radius: 3px;
-  opacity: .75;
-}
-.preset-btn.active .preset-thumb { opacity: 1; }
-.preset-info { flex: 1; }
-.preset-name { font-size: .86rem; font-weight: 500; }
-.preset-size { font-size: .71rem; color: var(--muted); margin-top: 2px; }
+  /* progress bar */
+  .progress-bar-wrap {
+    width: 100%;
+    background: var(--border);
+    border-radius: 30px;
+    height: 6px;
+    overflow: hidden;
+    display: none;
+    flex-basis: 100%;
+  }
+  .progress-bar-wrap.visible { display: block; }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 30px;
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .progress-text {
+    font-size: 0.72rem;
+    color: var(--accent2);
+    flex-basis: 100%;
+    display: none;
+    font-family: 'Space Mono', monospace;
+  }
+  .progress-text.visible { display: block; }
 
-.custom-ratio {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 7px;
-  align-items: center;
-}
-.custom-ratio input {
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 8px;
-  color: var(--text);
-  font-family: inherit;
-  font-size: .88rem;
-  width: 100%;
-  text-align: center;
-  outline: none;
-  transition: border-color .2s;
-}
-.custom-ratio input:focus { border-color: var(--accent2); }
-.custom-ratio span { color: var(--muted); text-align: center; }
+  /* Settings */
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (min-width: 600px) { .settings-grid { grid-template-columns: 1fr 1fr 1fr; } }
+  .field label {
+    display: block; font-size: 0.75rem; color: var(--muted);
+    margin-bottom: 6px; letter-spacing: 0.04em;
+  }
+  .field select, .field input[type=number] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 9px 12px;
+    font-size: 0.85rem;
+    outline: none;
+    font-family: 'Noto Sans TC', sans-serif;
+    transition: border-color 0.15s;
+  }
+  .field select:focus, .field input[type=number]:focus { border-color: var(--accent); }
+  .field input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
 
-.size-controls { display: flex; flex-direction: column; gap: 9px; }
-.size-row { display: flex; align-items: center; gap: 8px; }
-.size-row label { font-size: .78rem; color: var(--muted); width: 72px; flex-shrink: 0; }
-.size-row input[type=number] {
-  flex: 1;
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  padding: 7px 9px;
-  color: var(--text);
-  font-family: inherit;
-  font-size: .86rem;
-  outline: none;
-  transition: border-color .2s;
-}
-.size-row input[type=number]:focus { border-color: var(--accent2); }
-.size-row span { font-size: .76rem; color: var(--muted); }
-.size-row select {
-  flex: 1;
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  padding: 7px 9px;
-  color: var(--text);
-  font-family: inherit;
-  font-size: .86rem;
-  outline: none;
-}
+  /* Preview */
+  .preview-section { display: none; }
+  .preview-section.visible { display: block; }
+  .preview-wrap { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin-top: 18px; }
+  .preview-box {
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    border: 1px solid var(--border);
+  }
+  .preview-box canvas { display: block; }
+  .preview-info { flex: 1; min-width: 200px; }
+  .info-row {
+    display: flex; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.83rem;
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { color: var(--muted); }
+  .info-val { font-family: 'Space Mono', monospace; color: var(--accent2); font-size: 0.8rem; }
 
-.quality-row { display: flex; flex-direction: column; gap: 6px; }
-.quality-row label { font-size: .78rem; color: var(--muted); display: flex; justify-content: space-between; }
-.quality-row label em { color: var(--accent2); font-style: normal; }
-input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  .size-badge {
+    display: inline-block;
+    background: rgba(212,245,74,0.12);
+    border: 1px solid rgba(212,245,74,0.3);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 0.72rem;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .size-badge.green {
+    background: rgba(110,247,203,0.12);
+    border-color: rgba(110,247,203,0.3);
+    color: var(--accent2);
+  }
 
-.actions { display: flex; flex-direction: column; gap: 9px; margin-top: auto; padding-top: 8px; }
-.btn {
-  border: none;
-  border-radius: var(--r);
-  padding: 11px 16px;
-  font-family: inherit;
-  font-size: .88rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity .2s, transform .1s;
-  width: 100%;
-}
-.btn:active { transform: scale(.97); }
-.btn-primary { background: var(--accent); color: #0b0c10; }
-.btn-primary:hover { opacity: .88; }
-.btn-secondary { background: var(--surface2); color: var(--text); border: 1.5px solid var(--border); }
-.btn-secondary:hover { border-color: var(--accent2); }
-.btn:disabled { opacity: .3; cursor: not-allowed; transform: none !important; }
+  /* Download button */
+  .btn-download {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    background: var(--accent);
+    color: #111;
+    border: none;
+    border-radius: var(--radius);
+    padding: 15px 24px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans TC', sans-serif;
+    letter-spacing: 0.04em;
+    transition: background 0.15s, transform 0.1s;
+    margin-top: 16px;
+  }
+  .btn-download:hover { background: #e5ff60; transform: translateY(-1px); }
+  .btn-download:active { transform: translateY(0); }
+  .file-size-estimate {
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 8px;
+    font-family: 'Space Mono', monospace;
+  }
+  .file-size-estimate span { color: var(--accent2); font-weight: 700; }
 
-.main {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 36px 32px;
-  gap: 24px;
-  background: var(--bg);
-}
+  /* Steps */
+  .steps { display: flex; gap: 0; margin-bottom: 4px; }
+  .step {
+    flex: 1; text-align: center; padding: 8px 4px;
+    font-size: 0.72rem; color: var(--muted);
+    border-bottom: 2px solid var(--border);
+    letter-spacing: 0.04em; transition: color 0.2s, border-color 0.2s;
+  }
+  .step.active { color: var(--accent); border-color: var(--accent); }
+  .step.done   { color: var(--accent2); border-color: var(--accent2); }
 
-.empty-state { text-align: center; color: var(--muted); }
-.empty-state .big-icon { font-size: 3.6rem; margin-bottom: 14px; opacity: .35; }
-.empty-state p { font-size: .92rem; line-height: 1.8; }
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 10px 22px;
+    border-radius: 30px;
+    font-size: 0.83rem;
+    pointer-events: none;
+    transition: transform 0.3s;
+    z-index: 9999;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: var(--red); color: var(--red); }
 
-.crop-wrapper {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-  width: 100%;
-  max-width: 680px;
-}
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
 
-.crop-tools {
-  display: flex;
-  gap: 7px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-.tool-btn {
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  padding: 7px 13px;
-  color: var(--text);
-  font-family: inherit;
-  font-size: .78rem;
-  cursor: pointer;
-  transition: border-color .2s;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.tool-btn:hover { border-color: var(--accent2); color: var(--accent2); }
-
-.crop-container {
-  background: var(--surface);
-  border-radius: var(--r);
-  border: 1px solid var(--border);
-  overflow: hidden;
-  width: 100%;
-  max-height: 500px;
-}
-.crop-container img { display: block; max-width: 100%; }
-
-.preview-section {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 20px;
-  background: var(--surface);
-  border-radius: var(--r);
-  border: 1px solid var(--border);
-}
-.preview-label { font-size: .68rem; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
-#previewCanvas {
-  border-radius: 6px;
-  border: 2px solid var(--border);
-  box-shadow: 0 4px 20px rgba(0,0,0,.5);
-  max-width: 180px;
-  max-height: 180px;
-  object-fit: contain;
-}
-#previewInfo { font-size: .74rem; color: var(--muted); }
-
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%) translateY(80px);
-  background: var(--accent);
-  color: #0b0c10;
-  padding: 10px 22px;
-  border-radius: 100px;
-  font-size: .86rem;
-  font-weight: 600;
-  transition: transform .32s cubic-bezier(.34,1.56,.64,1);
-  z-index: 999;
-  pointer-events: none;
-  white-space: nowrap;
-}
-.toast.show { transform: translateX(-50%) translateY(0); }
-
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-@media (max-width: 780px) {
-  .app { grid-template-columns: 1fr; }
-  .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
-  .main { padding: 20px 14px; }
-}
+  /* checkerboard for transparent bg preview */
+  .checker {
+    background-image: linear-gradient(45deg, #555 25%, transparent 25%),
+                      linear-gradient(-45deg, #555 25%, transparent 25%),
+                      linear-gradient(45deg, transparent 75%, #555 75%),
+                      linear-gradient(-45deg, transparent 75%, #555 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+    background-color: #333;
+  }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="logo">PhotoCrop</div>
-  <span>／ 證件照裁切工具</span>
-</header>
+<div class="header">
+  <h1>📸 證件照裁切工具</h1>
+  <p>上傳 → 選規格 → 裁切 → AI去背 → 調整 → 下載</p>
+</div>
 
 <div class="app">
 
-  <aside class="sidebar">
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step active" id="step1">① 上傳</div>
+    <div class="step" id="step2">② 規格＆裁切</div>
+    <div class="step" id="step3">③ 調整＆下載</div>
+  </div>
 
-    <!-- 上傳 -->
-    <div>
-      <div class="section-label">上傳照片</div>
-      <div class="upload-zone" id="uploadZone">
-        <input type="file" id="fileInput" accept="image/*">
-        <div class="upload-icon">📷</div>
-        <strong>點擊或拖曳上傳</strong>
-        <p>支援 JPG、PNG、WEBP</p>
-      </div>
+  <!-- Upload -->
+  <div class="card">
+    <div class="card-title">上傳照片</div>
+    <div class="upload-zone" id="uploadZone">
+      <span class="upload-icon">🖼️</span>
+      <h3>點擊選擇照片，或拖曳到此處</h3>
+      <p>支援 JPG、PNG、WEBP</p>
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp">
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <div class="card crop-section" id="presetCard">
+    <div class="card-title">選擇照片規格</div>
+    <div class="presets">
+      <button class="preset-btn active"
+        data-w="35" data-h="45" data-px="413"
+        onclick="setPreset(this)">
+        <span class="preset-name">2吋大頭照</span>
+        <span class="preset-size">3.5 × 4.5 cm</span>
+      </button>
+      <button class="preset-btn"
+        data-w="47" data-h="42" data-px="554"
+        onclick="setPreset(this)">
+        <span class="preset-name">2吋半身照</span>
+        <span class="preset-size">4.7 × 4.2 cm</span>
+      </button>
+      <button class="preset-btn"
+        data-w="35" data-h="28" data-px="413"
+        onclick="setPreset(this)">
+        <span class="preset-name">1吋證件照</span>
+        <span class="preset-size">3.5 × 2.8 cm</span>
+      </button>
+      <button class="preset-btn"
+        data-w="50" data-h="50" data-px="590"
+        onclick="setPreset(this)">
+        <span class="preset-name">5 × 5</span>
+        <span class="preset-size">5.0 × 5.0 cm</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Crop -->
+  <div class="card crop-section" id="cropCard">
+    <div class="card-title">
+      裁切照片
+      <span id="currentPresetLabel" class="size-badge">2吋大頭照 (3.5×4.5 cm)</span>
+    </div>
+    <div class="crop-container">
+      <img id="cropImage" src="" alt="裁切圖片">
     </div>
 
-    <!-- 裁切比例 -->
-    <div>
-      <div class="section-label">裁切比例</div>
-      <div class="presets" id="presets">
-
-        <button class="preset-btn active" data-w="3.5" data-h="4.5" data-id="0">
-          <div class="preset-thumb" style="width:21px;height:27px;"></div>
-          <div class="preset-info">
-            <div class="preset-name">2吋大頭照</div>
-            <div class="preset-size">3.5 × 4.5 cm</div>
-          </div>
-        </button>
-
-        <button class="preset-btn" data-w="4.7" data-h="4.2" data-id="1">
-          <div class="preset-thumb" style="width:27px;height:24px;"></div>
-          <div class="preset-info">
-            <div class="preset-name">2吋半身照</div>
-            <div class="preset-size">4.7 × 4.2 cm</div>
-          </div>
-        </button>
-
-        <button class="preset-btn" data-w="3.5" data-h="2.8" data-id="2">
-          <div class="preset-thumb" style="width:25px;height:20px;"></div>
-          <div class="preset-info">
-            <div class="preset-name">1吋證件照</div>
-            <div class="preset-size">3.5 × 2.8 cm</div>
-          </div>
-        </button>
-
-        <button class="preset-btn" data-w="5.0" data-h="5.0" data-id="3">
-          <div class="preset-thumb" style="width:24px;height:24px;"></div>
-          <div class="preset-info">
-            <div class="preset-name">5 × 5 正方</div>
-            <div class="preset-size">5.0 × 5.0 cm</div>
-          </div>
-        </button>
-
-        <button class="preset-btn" data-w="0" data-h="0" data-id="4">
-          <div class="preset-thumb" style="width:24px;height:20px;background:var(--muted);"></div>
-          <div class="preset-info">
-            <div class="preset-name">自由裁切</div>
-            <div class="preset-size">不限比例</div>
-          </div>
-        </button>
-
-      </div>
-
-      <div style="margin-top:12px;">
-        <div class="section-label" style="margin-bottom:8px;">自訂比例（寬 : 高）</div>
-        <div class="custom-ratio">
-          <input type="number" id="customW" placeholder="寬" min="0.1" step="0.1" value="3.5">
-          <span>：</span>
-          <input type="number" id="customH" placeholder="高" min="0.1" step="0.1" value="4.5">
-        </div>
-        <button class="btn btn-secondary" style="margin-top:8px;font-size:.8rem;padding:8px;" id="applyCustom">套用自訂比例</button>
-      </div>
+    <!-- Rotation / flip controls -->
+    <div class="controls-row">
+      <button class="ctrl-btn" onclick="cropper.rotate(-90)">↺ 左旋90°</button>
+      <button class="ctrl-btn" onclick="cropper.rotate(90)">↻ 右旋90°</button>
+      <button class="ctrl-btn" onclick="flipH()">⇄ 水平翻轉</button>
+      <button class="ctrl-btn" onclick="flipV()">⇅ 垂直翻轉</button>
+      <button class="ctrl-btn" onclick="cropper.reset(); scaleX=1; scaleY=1;">⟳ 重置</button>
+      <button class="ctrl-btn" id="confirmCropBtn" onclick="triggerPreview()"
+        style="margin-left:auto;border-color:var(--accent);color:var(--accent);font-weight:700;">
+        ✂️ 確認裁切
+      </button>
     </div>
 
-    <!-- 輸出設定 -->
-    <div>
-      <div class="section-label">輸出設定</div>
-      <div class="size-controls">
-        <div class="size-row">
-          <label>輸出寬度</label>
-          <input type="number" id="outWidth" value="413" min="50" max="4000">
-          <span>px</span>
-        </div>
-        <div class="size-row">
-          <label>輸出高度</label>
-          <input type="number" id="outHeight" value="531" min="50" max="4000">
-          <span>px</span>
-        </div>
-        <div class="size-row">
-          <label>格式</label>
-          <select id="outFormat">
-            <option value="image/jpeg">JPEG</option>
-            <option value="image/png">PNG</option>
-            <option value="image/webp">WEBP</option>
-          </select>
-        </div>
-        <div class="quality-row">
-          <label>品質 <em id="qualityVal">90%</em></label>
-          <input type="range" id="quality" min="10" max="100" value="90">
+    <!-- BG removal panel -->
+    <div class="bg-panel">
+      <span class="bg-panel-label">🎨 背景顏色：</span>
+      <div class="swatch-row">
+        <div class="swatch swatch-white active" title="白色" onclick="selectBg(this,'#ffffff')"></div>
+        <div class="swatch swatch-light"        title="淺藍" onclick="selectBg(this,'#dce8f0')"></div>
+        <div class="swatch swatch-gray"         title="淺灰" onclick="selectBg(this,'#cccccc')"></div>
+        <div class="swatch swatch-custom" title="自訂顏色">
+          <input type="color" id="customColorInput" value="#ffffff" oninput="onCustomColor(this)">
         </div>
       </div>
-    </div>
 
-    <!-- 操作按鈕 -->
-    <div class="actions">
-      <button class="btn btn-primary" id="cropBtn" disabled>✂️ 裁切預覽</button>
-      <button class="btn btn-secondary" id="downloadBtn" disabled>⬇ 下載照片</button>
-    </div>
+      <button class="btn-rmbg" id="rmbgBtn" onclick="removeBackground()">
+        ✨ AI 自動去背景
+      </button>
 
-  </aside>
-
-  <main class="main">
-
-    <div class="empty-state" id="emptyState">
-      <div class="big-icon">🪪</div>
-      <p>請先上傳照片<br>選擇裁切比例後點擊「裁切預覽」<br>確認無誤再下載</p>
-    </div>
-
-    <div class="crop-wrapper" id="cropWrapper">
-      <div class="crop-tools">
-        <button class="tool-btn" id="rotateL">↺ 左旋 90°</button>
-        <button class="tool-btn" id="rotateR">↻ 右旋 90°</button>
-        <button class="tool-btn" id="flipH">⇔ 水平翻轉</button>
-        <button class="tool-btn" id="flipV">⇕ 垂直翻轉</button>
-        <button class="tool-btn" id="resetCrop">⟳ 重置</button>
-        <button class="tool-btn" id="zoomIn">🔍＋</button>
-        <button class="tool-btn" id="zoomOut">🔍－</button>
+      <div class="progress-bar-wrap" id="progressWrap">
+        <div class="progress-bar" id="progressBar"></div>
       </div>
-      <div class="crop-container">
-        <img id="cropImage" src="" alt="crop">
+      <div class="progress-text" id="progressText"></div>
+    </div>
+  </div>
+
+  <!-- Settings + Preview -->
+  <div class="card preview-section" id="previewCard">
+    <div class="card-title">輸出設定與預覽</div>
+
+    <div class="settings-grid">
+      <div class="field">
+        <label>檔案格式</label>
+        <select id="formatSelect" onchange="updatePreview()">
+          <option value="image/jpeg">JPG（較小）</option>
+          <option value="image/png">PNG（無損）</option>
+          <option value="image/webp">WEBP（最小）</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>輸出寬度（像素）</label>
+        <input type="number" id="outWidth" value="413" min="100" max="3000" step="1"
+          onchange="updatePreview()">
+      </div>
+
+      <div class="field">
+        <label>壓縮品質 <span id="qualityVal" class="size-badge">90%</span></label>
+        <input type="range" id="qualityRange" min="10" max="100" value="90" step="1"
+          oninput="document.getElementById('qualityVal').textContent=this.value+'%'; updatePreview()">
       </div>
     </div>
 
-    <div class="preview-section" id="previewSection">
-      <div class="preview-label">裁切預覽</div>
-      <canvas id="previewCanvas"></canvas>
-      <div id="previewInfo"></div>
+    <!-- Preview -->
+    <div class="preview-wrap">
+      <div class="preview-box checker" id="previewBox">
+        <canvas id="previewCanvas"></canvas>
+      </div>
+      <div class="preview-info">
+        <div class="info-row">
+          <span class="info-label">規格</span>
+          <span class="info-val" id="infoPreset">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">輸出尺寸（px）</span>
+          <span class="info-val" id="infoPx">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">格式</span>
+          <span class="info-val" id="infoFmt">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">背景</span>
+          <span class="info-val" id="infoBg">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">預估檔案大小</span>
+          <span class="info-val" id="infoSize">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">300 DPI 印刷尺寸</span>
+          <span class="info-val" id="infoCm">—</span>
+        </div>
+      </div>
     </div>
 
-  </main>
+    <!-- Download -->
+    <button class="btn-download" onclick="downloadImage()">⬇ 下載照片</button>
+    <div class="file-size-estimate" id="fileSizeEstimate"></div>
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
 
+<!-- Cropper -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+<!-- @imgly/background-removal via ESM CDN -->
+<script type="module">
+  import { removeBackground as imglyRemoveBg } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/+esm';
+  window._imglyRemoveBg = imglyRemoveBg;
+</script>
+
 <script>
-let cropper = null;
-let currentRatio = { w: 3.5, h: 4.5 };
-let croppedCanvas = null;
-let flipXState = 1, flipYState = 1;
+  let cropper   = null;
+  let scaleX    = 1, scaleY = 1;
+  let curW      = 35, curH = 45;
+  let curName   = '2吋大頭照', curSizeCm = '3.5 × 4.5 cm';
+  let croppedBlob      = null;
+  let bgRemovedDataUrl = null;   // after AI removal
+  let bgColor          = '#ffffff';
+  let useRemovedBg     = false;
 
-const presetOutputs = [
-  { w: 413, h: 531 },
-  { w: 555, h: 496 },
-  { w: 413, h: 330 },
-  { w: 591, h: 591 },
-  { w: 800, h: 800 },
-];
-
-// Upload
-const fileInput = document.getElementById('fileInput');
-const uploadZone = document.getElementById('uploadZone');
-
-uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
-uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
-uploadZone.addEventListener('drop', e => {
-  e.preventDefault();
-  uploadZone.classList.remove('drag');
-  const file = e.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) loadImage(file);
-});
-fileInput.addEventListener('change', e => { if (e.target.files[0]) loadImage(e.target.files[0]); });
-
-function loadImage(file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = document.getElementById('cropImage');
-    if (cropper) { cropper.destroy(); cropper = null; }
-    img.src = e.target.result;
-    flipXState = 1; flipYState = 1;
-
-    document.getElementById('emptyState').style.display = 'none';
-    document.getElementById('cropWrapper').style.display = 'flex';
-    document.getElementById('previewSection').style.display = 'none';
-    croppedCanvas = null;
-    document.getElementById('downloadBtn').disabled = true;
-
-    img.onload = () => {
-      initCropper();
-      document.getElementById('cropBtn').disabled = false;
-    };
-  };
-  reader.readAsDataURL(file);
-}
-
-function initCropper() {
-  const img = document.getElementById('cropImage');
-  const ratio = (currentRatio.w === 0) ? NaN : currentRatio.w / currentRatio.h;
-  cropper = new Cropper(img, {
-    aspectRatio: ratio,
-    viewMode: 1,
-    dragMode: 'move',
-    autoCropArea: 0.85,
-    restore: false,
-    guides: true,
-    center: true,
-    highlight: false,
-    cropBoxMovable: true,
-    cropBoxResizable: true,
-    toggleDragModeOnDblclick: false,
+  // ── Upload ──
+  const uploadZone = document.getElementById('uploadZone');
+  const fileInput  = document.getElementById('fileInput');
+  uploadZone.addEventListener('click', () => fileInput.click());
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
   });
-}
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
 
-// Preset
-document.getElementById('presets').addEventListener('click', e => {
-  const btn = e.target.closest('.preset-btn');
-  if (!btn) return;
-  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  function loadFile(file) {
+    if (!file.type.startsWith('image/')) { showToast('⚠️ 請上傳圖片檔案', true); return; }
+    bgRemovedDataUrl = null;
+    useRemovedBg = false;
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('cropImage').src = e.target.result;
+      document.querySelectorAll('.crop-section').forEach(el => el.classList.add('visible'));
+      document.getElementById('previewCard').classList.remove('visible');
+      setStep(2);
+      initCropper();
+    };
+    reader.readAsDataURL(file);
+  }
 
-  const w = parseFloat(btn.dataset.w);
-  const h = parseFloat(btn.dataset.h);
-  const id = parseInt(btn.dataset.id);
-  currentRatio = { w, h };
+  // ── Cropper ──
+  function initCropper() {
+    if (cropper) { cropper.destroy(); cropper = null; }
+    scaleX = 1; scaleY = 1;
+    cropper = new Cropper(document.getElementById('cropImage'), {
+      aspectRatio: curW / curH,
+      viewMode: 1,
+      dragMode: 'move',
+      autoCropArea: 0.85,
+      responsive: true,
+      background: false,
+      guides: true,
+      center: true,
+      highlight: false,
+    });
+  }
 
-  const out = presetOutputs[id];
-  document.getElementById('outWidth').value = out.w;
-  document.getElementById('outHeight').value = out.h;
+  function flipH() { scaleX *= -1; cropper.scaleX(scaleX); }
+  function flipV() { scaleY *= -1; cropper.scaleY(scaleY); }
 
-  if (cropper) cropper.setAspectRatio(w === 0 ? NaN : w / h);
-  document.getElementById('customW').value = w || '';
-  document.getElementById('customH').value = h || '';
-});
+  // ── Preset ──
+  function setPreset(btn) {
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    curW = parseInt(btn.dataset.w);
+    curH = parseInt(btn.dataset.h);
+    curName   = btn.querySelector('.preset-name').textContent;
+    curSizeCm = btn.querySelector('.preset-size').textContent;
+    document.getElementById('currentPresetLabel').textContent = curName + ' (' + curSizeCm + ')';
+    document.getElementById('outWidth').value = btn.dataset.px || 413;
+    if (cropper) { cropper.setAspectRatio(curW / curH); cropper.reset(); scaleX = 1; scaleY = 1; }
+    bgRemovedDataUrl = null; useRemovedBg = false;
+  }
+  window.setPreset = setPreset;
 
-// Custom ratio
-document.getElementById('applyCustom').addEventListener('click', () => {
-  const w = parseFloat(document.getElementById('customW').value) || 0;
-  const h = parseFloat(document.getElementById('customH').value) || 0;
-  if (w <= 0 || h <= 0) { showToast('請輸入有效的寬高值'); return; }
-  currentRatio = { w, h };
-  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-  if (cropper) cropper.setAspectRatio(w / h);
-  showToast(`已套用比例 ${w} : ${h}`);
-});
+  // ── Background color ──
+  function selectBg(el, color) {
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+    bgColor = color;
+    if (document.getElementById('previewCard').classList.contains('visible')) updatePreview();
+  }
+  window.selectBg = selectBg;
 
-// Quality
-document.getElementById('quality').addEventListener('input', function() {
-  document.getElementById('qualityVal').textContent = this.value + '%';
-});
+  function onCustomColor(input) {
+    const swatches = document.querySelectorAll('.swatch');
+    swatches.forEach(s => s.classList.remove('active'));
+    document.querySelector('.swatch-custom').classList.add('active');
+    bgColor = input.value;
+    if (document.getElementById('previewCard').classList.contains('visible')) updatePreview();
+  }
+  window.onCustomColor = onCustomColor;
 
-// Tool buttons
-document.getElementById('rotateL').addEventListener('click', () => { if (cropper) cropper.rotate(-90); });
-document.getElementById('rotateR').addEventListener('click', () => { if (cropper) cropper.rotate(90); });
-document.getElementById('flipH').addEventListener('click', () => {
-  if (!cropper) return;
-  flipXState *= -1;
-  cropper.scaleX(flipXState);
-});
-document.getElementById('flipV').addEventListener('click', () => {
-  if (!cropper) return;
-  flipYState *= -1;
-  cropper.scaleY(flipYState);
-});
-document.getElementById('resetCrop').addEventListener('click', () => {
-  if (!cropper) return;
-  cropper.reset();
-  flipXState = 1; flipYState = 1;
-});
-document.getElementById('zoomIn').addEventListener('click', () => { if (cropper) cropper.zoom(0.1); });
-document.getElementById('zoomOut').addEventListener('click', () => { if (cropper) cropper.zoom(-0.1); });
+  // ── AI Remove Background ──
+  async function removeBackground() {
+    if (!cropper) { showToast('⚠️ 請先上傳照片', true); return; }
+    if (!window._imglyRemoveBg) { showToast('⚠️ AI 套件載入中，請稍後再試', true); return; }
 
-// Crop preview
-document.getElementById('cropBtn').addEventListener('click', () => {
-  if (!cropper) return;
-  const w = parseInt(document.getElementById('outWidth').value) || 413;
-  const h = parseInt(document.getElementById('outHeight').value) || 531;
+    const btn = document.getElementById('rmbgBtn');
+    const progressWrap = document.getElementById('progressWrap');
+    const progressBar  = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
 
-  croppedCanvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> AI 處理中…';
+    progressWrap.classList.add('visible');
+    progressText.classList.add('visible');
+    progressBar.style.width = '0%';
+    progressText.textContent = '正在下載 AI 模型（首次需要約30秒）…';
 
-  const preview = document.getElementById('previewCanvas');
-  const maxPrev = 180;
-  const scale = Math.min(maxPrev / w, maxPrev / h, 1);
-  preview.width = Math.round(w * scale);
-  preview.height = Math.round(h * scale);
-  const ctx = preview.getContext('2d');
-  ctx.drawImage(croppedCanvas, 0, 0, preview.width, preview.height);
+    // Get the current cropped canvas at medium resolution for the AI
+    const w = parseInt(document.getElementById('outWidth').value) || 413;
+    const h = Math.round(w / (curW / curH));
+    const canvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
 
-  document.getElementById('previewSection').style.display = 'flex';
-  document.getElementById('previewInfo').textContent = `${w} × ${h} px`;
-  document.getElementById('downloadBtn').disabled = false;
-  showToast('裁切完成！可以下載了 ✅');
-});
+    try {
+      // Convert canvas to blob for imgly
+      const inputBlob = await new Promise(res => canvas.toBlob(res, 'image/png'));
 
-// Download
-document.getElementById('downloadBtn').addEventListener('click', () => {
-  if (!croppedCanvas) return;
-  const format = document.getElementById('outFormat').value;
-  const quality = parseInt(document.getElementById('quality').value) / 100;
-  const ext = format === 'image/jpeg' ? 'jpg' : format === 'image/png' ? 'png' : 'webp';
+      progressBar.style.width = '30%';
+      progressText.textContent = '模型載入完成，正在去除背景…';
 
-  croppedCanvas.toBlob(blob => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `photo_${Date.now()}.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('下載完成 🎉');
-  }, format, quality);
-});
+      const resultBlob = await window._imglyRemoveBg(inputBlob, {
+        publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/',
+        progress: (key, current, total) => {
+          const pct = total ? Math.round((current / total) * 60) + 30 : 60;
+          progressBar.style.width = Math.min(pct, 90) + '%';
+          if (key === 'compute:inference') progressText.textContent = '正在辨識輪廓…';
+          else if (key === 'fetch:model') progressText.textContent = '下載模型中 ' + Math.round(current/1024) + ' KB / ' + Math.round(total/1024) + ' KB';
+        }
+      });
 
-// Toast
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), 2800);
-}
+      // Store as dataURL
+      const reader = new FileReader();
+      reader.onload = e => {
+        bgRemovedDataUrl = e.target.result;
+        useRemovedBg = true;
+        progressBar.style.width = '100%';
+        progressText.textContent = '✅ 去背景完成！';
+        btn.disabled = false;
+        btn.innerHTML = '✨ AI 自動去背景';
+        triggerPreview();
+        setTimeout(() => {
+          progressWrap.classList.remove('visible');
+          progressText.classList.remove('visible');
+        }, 2000);
+      };
+      reader.readAsDataURL(resultBlob);
+
+    } catch (err) {
+      console.error(err);
+      btn.disabled = false;
+      btn.innerHTML = '✨ AI 自動去背景';
+      progressWrap.classList.remove('visible');
+      progressText.classList.remove('visible');
+      showToast('❌ 去背景失敗：' + err.message, true);
+    }
+  }
+  window.removeBackground = removeBackground;
+
+  // ── Confirm crop ──
+  function triggerPreview() {
+    if (!cropper) return;
+    const w = parseInt(document.getElementById('outWidth').value) || 413;
+    const h = Math.round(w / (curW / curH));
+    const canvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
+    if (!canvas) { showToast('⚠️ 請先上傳照片', true); return; }
+    renderPreview(canvas, w, h);
+    document.getElementById('previewCard').classList.add('visible');
+    setStep(3);
+    setTimeout(() => document.getElementById('previewCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+  }
+  window.triggerPreview = triggerPreview;
+
+  function updatePreview() {
+    if (!cropper || !document.getElementById('previewCard').classList.contains('visible')) return;
+    const w = parseInt(document.getElementById('outWidth').value) || 413;
+    const h = Math.round(w / (curW / curH));
+    const canvas = cropper.getCroppedCanvas({ width: w, height: h, imageSmoothingQuality: 'high' });
+    if (canvas) renderPreview(canvas, w, h);
+  }
+
+  // ── Render preview ──
+  function renderPreview(srcCanvas, w, h) {
+    const fmt     = document.getElementById('formatSelect').value;
+    const quality = parseInt(document.getElementById('qualityRange').value) / 100;
+    const ext     = fmt === 'image/jpeg' ? 'JPG' : fmt === 'image/png' ? 'PNG' : 'WEBP';
+
+    // compose final canvas (apply bg if needed)
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width  = w;
+    finalCanvas.height = h;
+    const ctx = finalCanvas.getContext('2d');
+
+    if (useRemovedBg && bgRemovedDataUrl) {
+      // Fill background color
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, w, h);
+      // Draw removed-bg image
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, w, h);
+        _finishRender(finalCanvas, w, h, fmt, quality, ext);
+      };
+      img.src = bgRemovedDataUrl;
+    } else {
+      ctx.drawImage(srcCanvas, 0, 0, w, h);
+      _finishRender(finalCanvas, w, h, fmt, quality, ext);
+    }
+  }
+
+  function _finishRender(canvas, w, h, fmt, quality, ext) {
+    // Draw small preview (max 180px wide)
+    const dW = Math.min(w, 180);
+    const dH = Math.round(dW * (h / w));
+    const pc  = document.getElementById('previewCanvas');
+    pc.width = dW; pc.height = dH;
+    pc.getContext('2d').drawImage(canvas, 0, 0, dW, dH);
+
+    // Estimate file size
+    const dataUrl = canvas.toDataURL(fmt, quality);
+    const bytes   = Math.round(dataUrl.split(',')[1].length * 0.75);
+    const sizeStr = formatBytes(bytes);
+
+    // cm at 300 DPI
+    const cmW = (w / 300 * 2.54).toFixed(1);
+    const cmH = (h / 300 * 2.54).toFixed(1);
+
+    const bgLabel = useRemovedBg
+      ? 'AI去背 + ' + bgColor
+      : '原始';
+
+    document.getElementById('infoPreset').textContent = curName + ' (' + curSizeCm + ')';
+    document.getElementById('infoPx').textContent     = w + ' × ' + h + ' px';
+    document.getElementById('infoFmt').textContent    = ext + (fmt !== 'image/png' ? '  品質 ' + Math.round(quality*100) + '%' : '');
+    document.getElementById('infoBg').textContent     = bgLabel;
+    document.getElementById('infoSize').textContent   = sizeStr;
+    document.getElementById('infoCm').textContent     = cmW + ' × ' + cmH + ' cm';
+
+    // Show big estimate near download button
+    document.getElementById('fileSizeEstimate').innerHTML =
+      '預估下載大小：<span>' + sizeStr + '</span>';
+
+    canvas.toBlob(blob => { croppedBlob = blob; }, fmt, quality);
+  }
+
+  function formatBytes(bytes) {
+    if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
+    return Math.round(bytes / 1024) + ' KB';
+  }
+
+  // ── Download ──
+  function downloadImage() {
+    if (!croppedBlob) { showToast('⚠️ 請先確認裁切', true); return; }
+    const fmt  = document.getElementById('formatSelect').value;
+    const ext  = fmt === 'image/jpeg' ? 'jpg' : fmt === 'image/png' ? 'png' : 'webp';
+    const name = curName.replace(/\s/g,'_') + '.' + ext;
+    const url  = URL.createObjectURL(croppedBlob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('✅ 已下載：' + name + '（' + formatBytes(croppedBlob.size) + '）');
+  }
+  window.downloadImage = downloadImage;
+
+  // ── Steps ──
+  function setStep(n) {
+    for (let i = 1; i <= 3; i++) {
+      document.getElementById('step'+i).className =
+        'step' + (i < n ? ' done' : i === n ? ' active' : '');
+    }
+  }
+
+  // ── Toast ──
+  function showToast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className   = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => t.className = 'toast', 3000);
+  }
 </script>
 </body>
 </html>
