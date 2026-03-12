@@ -509,7 +509,7 @@ async function removeBackground() {
     progressBar.style.width = '50%';
 
     const resultBlob = await window._imglyRemoveBg(inputBlob, {
-      publicPath: 'https://esm.sh/@imgly/background-removal@1.4.5/dist/',
+      publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.5/dist/',
       progress: (key, cur, total) => {
         if (total) {
           const pct = Math.min(50 + Math.round((cur / total) * 45), 95);
