@@ -118,13 +118,36 @@
 
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+
+  /* A4 sheet */
+  .a4-divider { border: none; border-top: 1px dashed var(--border); margin: 28px 0 20px; }
+  .a4-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-top: 4px; }
+  @media(min-width:600px){ .a4-grid { grid-template-columns: repeat(4,1fr); } }
+  .check-row { display: flex; align-items: center; gap: 8px; font-size: .85rem; margin-top: 14px; cursor: pointer; }
+  .check-row input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .a4-preview-wrap { margin-top: 18px; display: flex; justify-content: center; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .a4-preview-wrap canvas { max-width: 100%; height: auto; box-shadow: 0 4px 24px rgba(0,0,0,.6); background: #fff; }
+  .a4-info { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 10px; font-family: 'Space Mono', monospace; }
+  .a4-info span { color: var(--accent); font-weight: 700; }
+  .btn-row { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 14px; }
+  @media(min-width:600px){ .btn-row { grid-template-columns: repeat(3,1fr); } }
+  .btn-row .btn-download { margin-top: 0; font-size: .92rem; padding: 13px 12px; }
+  .btn-alt { background: transparent !important; color: var(--accent) !important; border: 1.5px solid var(--accent) !important; }
+  .btn-alt:hover { background: rgba(212,245,74,.08) !important; }
+  #printArea { display: none; }
+  @media print {
+    body > *:not(#printArea) { display: none !important; }
+    body { background: #fff !important; padding: 0 !important; min-height: 0 !important; }
+    #printArea { display: block !important; }
+    #printArea img { display: block; width: 100%; height: auto; }
+  }
 </style>
 </head>
 <body>
 
 <div class="header">
   <h1>📸 證件照裁切工具</h1>
-  <p>上傳 → 選規格 → 裁切 → AI去背 → 調整 → 下載</p>
+  <p>上傳 → 選規格 → 裁切 → AI去背 → 調整 → 下載 / A4 列印</p>
 </div>
 
 <div class="app">
@@ -246,8 +269,47 @@
     <div class="file-size-estimate" id="fileSizeEstimate">
       預估下載大小：<span id="fileSizeVal">—</span>
     </div>
+
+    <hr class="a4-divider">
+    <div class="card-title">🖨️ A4 列印排版（可剪下使用）</div>
+    <div class="a4-grid">
+      <div class="field">
+        <label>紙張方向</label>
+        <select id="a4Orient" onchange="renderA4Preview()">
+          <option value="portrait">直向</option>
+          <option value="landscape">橫向</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>張數（0 = 填滿整頁）</label>
+        <input type="number" id="a4Count" value="0" min="0" max="200" step="1" onchange="renderA4Preview()" oninput="renderA4Preview()">
+      </div>
+      <div class="field">
+        <label>照片間距 (mm)</label>
+        <input type="number" id="a4Gap" value="3" min="0" max="20" step="0.5" onchange="renderA4Preview()" oninput="renderA4Preview()">
+      </div>
+      <div class="field">
+        <label>紙張邊距 (mm)</label>
+        <input type="number" id="a4Margin" value="8" min="0" max="30" step="0.5" onchange="renderA4Preview()" oninput="renderA4Preview()">
+      </div>
+    </div>
+    <label class="check-row"><input type="checkbox" id="a4Cut" checked onchange="renderA4Preview()"> 顯示裁切線（照片外框細灰線，沿線剪下）</label>
+
+    <div class="a4-preview-wrap"><canvas id="a4Canvas"></canvas></div>
+    <div class="a4-info" id="a4Info">—</div>
+
+    <div class="btn-row">
+      <button class="btn-download" onclick="downloadA4('pdf')">⬇ 下載 A4 PDF</button>
+      <button class="btn-download btn-alt" onclick="downloadA4('jpg')">⬇ 下載 A4 圖片 (JPG)</button>
+      <button class="btn-download btn-alt" onclick="printA4()">🖨️ 直接列印</button>
+    </div>
+    <p class="a4-info" style="margin-top:12px;font-family:'Noto Sans TC',sans-serif;">
+      💡 列印時請選「實際大小 / 100%」，不要選「縮放至符合頁面」，尺寸才會準確。
+    </p>
   </div>
 </div>
+
+<div id="printArea"></div>
 
 <div class="toast" id="toast"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
@@ -266,6 +328,7 @@ let maskedImageData = null;
 // cache of the last cropped canvas (for re-compositing when bg color changes)
 let lastCroppedCanvas = null;
 let segmenter     = null;
+let lastFinalCanvas = null;
 
 /* ── Upload ── */
 const uploadZone = document.getElementById('uploadZone');
@@ -496,6 +559,7 @@ function updatePreview() {
 
 /* ── Render preview ── */
 function renderPreview(finalCanvas, w, h) {
+  lastFinalCanvas = finalCanvas;
   const fmt     = document.getElementById('formatSelect').value;
   const quality = parseInt(document.getElementById('qualityRange').value) / 100;
   const ext     = fmt === 'image/jpeg' ? 'JPG' : fmt === 'image/png' ? 'PNG' : 'WEBP';
@@ -527,6 +591,7 @@ function renderPreview(finalCanvas, w, h) {
   fse.style.display = 'block';
 
   finalCanvas.toBlob(blob => { croppedBlob = blob; }, fmt, quality);
+  renderA4Preview();
 }
 
 function formatBytes(b) {
@@ -544,6 +609,160 @@ function downloadImage() {
   a.href = url; a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast('✅ 已下載：' + name + '（' + formatBytes(croppedBlob.size) + '）');
+}
+
+
+/* ── A4 sheet ── */
+const A4_MM = { w: 210, h: 297 };
+
+function a4Settings() {
+  const landscape = document.getElementById('a4Orient').value === 'landscape';
+  return {
+    pageW: landscape ? A4_MM.h : A4_MM.w,
+    pageH: landscape ? A4_MM.w : A4_MM.h,
+    landscape,
+    gap:    Math.max(0, parseFloat(document.getElementById('a4Gap').value) || 0),
+    margin: Math.max(0, parseFloat(document.getElementById('a4Margin').value) || 0),
+    count:  Math.max(0, parseInt(document.getElementById('a4Count').value) || 0),
+    cut:    document.getElementById('a4Cut').checked
+  };
+}
+
+function a4Layout(o) {
+  const cols = Math.max(0, Math.floor((o.pageW - 2*o.margin + o.gap) / (curW/10*10 + o.gap)));
+  const rows = Math.max(0, Math.floor((o.pageH - 2*o.margin + o.gap) / (curH/10*10 + o.gap)));
+  return { cols, rows, max: cols * rows };
+}
+
+/* dpi: render resolution. Photo is drawn at its real physical size (curW × curH mm). */
+function buildA4Canvas(dpi) {
+  if (!lastFinalCanvas) return null;
+  const o  = a4Settings();
+  const L  = a4Layout(o);
+  const mm = dpi / 25.4;
+  const pw = curW, ph = curH;          // photo size in mm  (data-w / data-h are in mm)
+  const cv = document.createElement('canvas');
+  cv.width  = Math.round(o.pageW * mm);
+  cv.height = Math.round(o.pageH * mm);
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  const total = o.count > 0 ? Math.min(o.count, L.max) : L.max;
+  const gridW = L.cols * pw + (L.cols - 1) * o.gap;
+  const x0 = (o.pageW - gridW) / 2;          // centered horizontally
+  const y0 = o.margin;
+
+  let n = 0;
+  for (let r = 0; r < L.rows && n < total; r++) {
+    for (let c = 0; c < L.cols && n < total; c++, n++) {
+      const x = Math.round((x0 + c * (pw + o.gap)) * mm);
+      const y = Math.round((y0 + r * (ph + o.gap)) * mm);
+      const w = Math.round(pw * mm), h = Math.round(ph * mm);
+      ctx.drawImage(lastFinalCanvas, x, y, w, h);
+      if (o.cut) {
+        const lw = Math.max(1, Math.round(dpi / 150));
+        ctx.strokeStyle = '#9a9a9a';
+        ctx.lineWidth = lw;
+        ctx.strokeRect(x - lw/2, y - lw/2, w + lw, h + lw);   // drawn just outside the photo
+      }
+    }
+  }
+  cv._info = { total, max: L.max, cols: L.cols, rows: L.rows };
+  return cv;
+}
+
+function renderA4Preview() {
+  if (!lastFinalCanvas) return;
+  const cv = buildA4Canvas(96);
+  const pc = document.getElementById('a4Canvas');
+  pc.width = cv.width; pc.height = cv.height;
+  pc.getContext('2d').drawImage(cv, 0, 0);
+  const i = cv._info;
+  const info = document.getElementById('a4Info');
+  if (i.max === 0) {
+    info.innerHTML = '⚠️ 照片尺寸大於紙張可用範圍，請減少邊距';
+  } else {
+    info.innerHTML = '本頁共 <span>' + i.total + '</span> 張（每頁最多 ' + i.max + ' 張，' + i.cols + ' 欄 × ' + i.rows + ' 列）';
+  }
+}
+
+function canvasToBytes(cv, q) {
+  const b64 = cv.toDataURL('image/jpeg', q).split(',')[1];
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+/* Minimal single-page PDF with one embedded JPEG */
+function buildPdf(jpeg, pxW, pxH, ptW, ptH) {
+  const enc = new TextEncoder();
+  const parts = []; const offsets = []; let pos = 0;
+  const push = d => { const u = typeof d === 'string' ? enc.encode(d) : d; parts.push(u); pos += u.length; };
+  const obj = (n, body) => { offsets[n] = pos; push(n + ' 0 obj\n'); push(body); push('\nendobj\n'); };
+
+  push('%PDF-1.4\n');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  obj(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + ptW.toFixed(2) + ' ' + ptH.toFixed(2) + '] ' +
+         '/Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>');
+  offsets[4] = pos;
+  push('4 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + pxW + ' /Height ' + pxH +
+       ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.length + ' >>\nstream\n');
+  push(jpeg);
+  push('\nendstream\nendobj\n');
+  const content = 'q ' + ptW.toFixed(2) + ' 0 0 ' + ptH.toFixed(2) + ' 0 0 cm /Im0 Do Q';
+  obj(5, '<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream');
+
+  const xref = pos;
+  let x = 'xref\n0 6\n0000000000 65535 f \n';
+  for (let i = 1; i <= 5; i++) x += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  x += 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF';
+  push(x);
+  return new Blob(parts, { type: 'application/pdf' });
+}
+
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function downloadA4(type) {
+  if (!lastFinalCanvas) { showToast('⚠️ 請先確認裁切', true); return; }
+  const o = a4Settings();
+  if (a4Layout(o).max === 0) { showToast('⚠️ 照片大於紙張可用範圍', true); return; }
+  const cv = buildA4Canvas(300);
+  const base = 'A4_' + curName.replace(/\s/g, '_');
+  if (type === 'pdf') {
+    const jpeg = canvasToBytes(cv, 0.95);
+    const blob = buildPdf(jpeg, cv.width, cv.height, o.pageW / 25.4 * 72, o.pageH / 25.4 * 72);
+    saveBlob(blob, base + '.pdf');
+    showToast('✅ 已下載 A4 PDF（' + formatBytes(blob.size) + '）');
+  } else {
+    cv.toBlob(b => { saveBlob(b, base + '.jpg'); showToast('✅ 已下載 A4 圖片（' + formatBytes(b.size) + '）'); }, 'image/jpeg', 0.95);
+  }
+}
+
+function printA4() {
+  if (!lastFinalCanvas) { showToast('⚠️ 請先確認裁切', true); return; }
+  const o = a4Settings();
+  if (a4Layout(o).max === 0) { showToast('⚠️ 照片大於紙張可用範圍', true); return; }
+  const cv = buildA4Canvas(300);
+  const img = new Image();
+  img.onload = () => {
+    let st = document.getElementById('pageStyle');
+    if (!st) { st = document.createElement('style'); st.id = 'pageStyle'; document.head.appendChild(st); }
+    st.textContent = '@page { size: A4 ' + (o.landscape ? 'landscape' : 'portrait') + '; margin: 0; }';
+    const pa = document.getElementById('printArea');
+    pa.innerHTML = ''; pa.appendChild(img);
+    setTimeout(() => window.print(), 100);
+  };
+  img.src = cv.toDataURL('image/jpeg', 0.95);
 }
 
 /* ── Steps ── */
